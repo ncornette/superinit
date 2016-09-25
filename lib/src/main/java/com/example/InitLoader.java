@@ -10,45 +10,45 @@ import java.util.concurrent.TimeUnit;
 public class InitLoader {
 
     private final ExecutorService executorService;
-    List<Node> resolved;
-    Node terminationNode;
+    List<InitNode> resolved;
+    private InitNode endInitNode;
 
     public InitLoader(int nThreads) {
         executorService = Executors.newFixedThreadPool(nThreads);
     }
 
-    public void load(Runnable terminateCallback, Node... nodes) {
+    public void load(Runnable loadedCallback, InitNode... initNodes) {
 
         resolved = new ArrayList<>();
-        dep_resolve(Arrays.asList(nodes), resolved);
+        dep_resolve(Arrays.asList(initNodes), resolved);
 
-        for (Node node : resolved) {
-            executorService.execute(node);
-            System.out.printf("Load %s%n", node);
+        for (InitNode initNode : resolved) {
+            executorService.execute(initNode);
+            System.out.printf("Load %s%n", initNode);
         }
 
-        terminationNode = new Node(terminateCallback);
-        terminationNode.dependsOn(nodes);
-        executorService.execute(terminationNode);
+        endInitNode = new InitNode(loadedCallback);
+        endInitNode.dependsOn(initNodes);
+        executorService.execute(endInitNode);
     }
 
-    public void load(Node... nodes) {
-        this.load(null, nodes);
+    public void load(InitNode... initNodes) {
+        this.load(null, initNodes);
     }
 
-    void dep_resolve(List<Node> nodes, List<Node> resolved) {
-        for (Node node : nodes) {
-            dep_resolve(node, resolved);
+    void dep_resolve(List<InitNode> initNodes, List<InitNode> resolved) {
+        for (InitNode initNode : initNodes) {
+            dep_resolve(initNode, resolved);
         }
 
     }
 
-    void dep_resolve(Node node, List<Node> resolved) {
-        for (Node dependency : node.dependencies) {
+    void dep_resolve(InitNode initNode, List<InitNode> resolved) {
+        for (InitNode dependency : initNode.dependencies) {
             dep_resolve(dependency, resolved);
         }
-        if (!resolved.contains(node)) {
-            resolved.add(node);
+        if (!resolved.contains(initNode)) {
+            resolved.add(initNode);
         }
     }
 

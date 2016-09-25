@@ -5,18 +5,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
-public class Node implements Init {
+public class InitNode implements Init {
 
     private CountDownLatch countDownLatch = new CountDownLatch(1);
 
-    protected List<Node> dependencies = Collections.EMPTY_LIST;
+    protected List<InitNode> dependencies = Collections.EMPTY_LIST;
     private Runnable task;
 
-    public Node() {
+    public InitNode() {
         this(null);
     }
 
-    public Node(Runnable task) {
+    public InitNode(Runnable task) {
         this.task = task == null ? new EmptyRunnable(): task;
     }
 
@@ -25,17 +25,17 @@ public class Node implements Init {
         return countDownLatch.getCount() == 0;
     }
 
-    public void dependsOn(Node... newDependencies) {
+    public void dependsOn(InitNode... newDependencies) {
         if (dependencies == Collections.EMPTY_LIST) {
             dependencies = new ArrayList<>();
         }
-        for (Node node : newDependencies) {
-            if (node.dependencies.contains(this)) {
+        for (InitNode initNode : newDependencies) {
+            if (initNode.dependencies.contains(this)) {
                 throw new IllegalArgumentException(String.format(
-                        "Error adding dependency: %s, circular dependency detected", node));
+                        "Error adding dependency: %s, circular dependency detected", initNode));
             }
-            if (!dependencies.contains(node)) {
-                dependencies.add(node);
+            if (!dependencies.contains(initNode)) {
+                dependencies.add(initNode);
             }
         }
     }
@@ -43,16 +43,16 @@ public class Node implements Init {
     @Override
     public void run() {
         System.out.println(String.format("%s, on thread %s : RUNNING", this.toString(), Thread.currentThread().getName()));
-        for (Node dependency : dependencies) {
+        for (InitNode dependency : dependencies) {
             try {
-                System.out.println(String.format("%s, on thread %s : WAITING for %s", this.toString(), Thread.currentThread().getName(), dependency));
+                System.out.println(String.format("%s, on thread %s :   WAITING for %s", this.toString(), Thread.currentThread().getName(), dependency));
                 dependency.countDownLatch.await();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                throw new IllegalStateException(e);
             }
         }
 
-        System.out.println(String.format("%s, on thread %s : EXECUTE TASK", this.toString(), Thread.currentThread().getName()));
+        System.out.println(String.format("%s, on thread %s :   EXECUTE TASK", this.toString(), Thread.currentThread().getName()));
         runTask();
 
         countDownLatch.countDown();
@@ -72,7 +72,7 @@ public class Node implements Init {
 
     @Override
     public String toString() {
-        return "Node{" +
+        return "InitNode{" +
                 "task=" + task +
                 '}';
     }
