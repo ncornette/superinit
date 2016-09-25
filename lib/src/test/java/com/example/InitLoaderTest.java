@@ -3,9 +3,12 @@ package com.example;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Arrays;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 public class InitLoaderTest {
@@ -23,47 +26,51 @@ public class InitLoaderTest {
     @Before
     public void setUp() throws Exception {
 
-        initA = new TestNode("A");
-        initB = new TestNode("B");
-        initC = new TestNode("C");
-        initD = new TestNode("D");
-        initE = new TestNode("E");
-        initF = new TestNode("F");
-        initG = new TestNode("G");
-        initH = new TestNode("H");
+        initA = new TestNode("A", new Wait(500, "A"));
+        initB = new TestNode("B", new Wait(500, "B"));
+        initC = new TestNode("C", new Wait(500, "C"));
+        initD = new TestNode("D", new Wait(500, "D"));
+        initE = new TestNode("E", new Wait(500, "E"));
+        initF = new TestNode("F", new Wait(500, "F"));
+        initG = new TestNode("G", new Wait(500, "G"));
+        initH = new TestNode("H", new Wait(500, "H"));
 
         nodes = new Node[] {initA, initB, initC, initD, initE, initF, initG, initH};
     }
 
     @Test
-    public void test_Loader() throws Exception {
+    public void test_InitLoader() throws Exception {
+
         // Given
         initA.dependsOn(initB);
 
-        //When
-        InitLoader depLoader = new InitLoader();
-        depLoader.load(nodes);
-        depLoader.await();
+        // When
+        InitLoader depLoader = new InitLoader(5);
 
-        //Then
-        assertThat(new NodeStartedPredicate()).accepts(nodes);
+        assertInitialized(depLoader);
     }
 
     @Test
-    public void test_Init_Depends_Circular() throws Exception {
+    public void test_InitLoader_Reject_Circular() throws Exception {
+
         // Given
         initA.dependsOn(initB);
 
         try {
+
+            // When
             initB.dependsOn(initA);
             fail("Should fail making circular dependency.");
         } catch (IllegalArgumentException e) {
+
+            // Then
             assertThat(e.getMessage()).isNotEmpty();
         }
     }
 
     @Test
-    public <T> void test_Init_Depends_Multi() throws Exception {
+    public void test_InitLoader_Async() throws Exception {
+
         // Given
         initA.dependsOn(initB);
         initB.dependsOn(initC);
@@ -79,29 +86,64 @@ public class InitLoaderTest {
         // +--- G
         // +--- H
 
-        //When
-        InitLoader depLoader = new InitLoader();
+        // Then
+        assertInitialized(new InitLoader(6));
+    }
 
-        Runnable terminateCallback = spy(new TestTerminateCallback(depLoader));
+    @Test
+    public void test_InitLoader_Async_Serial() throws Exception {
+
+        // Given
+        initA.dependsOn(initB);
+        initB.dependsOn(initC);
+        initC.dependsOn(initD);
+        initD.dependsOn(initE);
+        initE.dependsOn(initF);
+        initF.dependsOn(initG);
+        initG.dependsOn(initH);
+
+        // Then
+        assertInitialized(new InitLoader(10));
+    }
+
+    private void assertInitialized(InitLoader depLoader) throws InterruptedException {
+        Runnable terminateCallback = spy(new TestTerminateCallback(nodes));
         depLoader.load(terminateCallback, nodes);
 
-        verify(terminateCallback).run();
-
         //Then
-        depLoader.await();
-        assertThat(new NodeStartedPredicate()).acceptsAll(depLoader.resolved);
+        verify(terminateCallback, timeout(6000)).run();
     }
 
     private static class TestTerminateCallback implements Runnable {
-        private final InitLoader depLoader;
+        private final Node[] nodes;
 
-        public TestTerminateCallback(InitLoader depLoader) {
-            this.depLoader = depLoader;
+        public TestTerminateCallback(Node... nodes) {
+            this.nodes = nodes;
         }
 
         @Override
         public void run() {
-            assertThat(new NodeStartedPredicate()).acceptsAll(depLoader.resolved);
+            assertThat(new NodeStartedPredicate()).acceptsAll(Arrays.asList(nodes));
+        }
+    }
+
+    private static class Wait implements Runnable {
+        private int millis;
+        private String name;
+
+        public Wait(int millis, String name) {
+            this.millis = millis;
+            this.name = name;
+        }
+
+        @Override
+        public void run() {
+            System.out.printf("Running %s on %s%n", name, Thread.currentThread().getName());
+            try {
+                Thread.sleep(millis);
+            } catch (InterruptedException e) {
+                fail("Interrupted", e);
+            }
         }
     }
 
@@ -110,17 +152,28 @@ public class InitLoaderTest {
 
         private String name;
 
-        public TestNode(String name) {
+        public TestNode(String name, Runnable task) {
+            super(task);
             this.name = name;
+        }
+
+        public TestNode(String name) {
+            this(name, null);
         }
 
         @Override
         public void run() {
             assertThat(isStarted()).overridingErrorMessage(this + " already started").isFalse();
+            super.run();
+        }
+
+        @Override
+        protected void runTask() {
             for (Node dependency : dependencies) {
                 assertThat(new NodeStartedPredicate()).accepts(dependency);
             }
-            super.run();
+
+            super.runTask();
         }
 
         @Override

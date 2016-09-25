@@ -7,7 +7,7 @@ import java.util.concurrent.CountDownLatch;
 
 public class Node implements Init {
 
-    CountDownLatch countDownLatch = new CountDownLatch(1);
+    private CountDownLatch countDownLatch = new CountDownLatch(1);
 
     protected List<Node> dependencies = Collections.EMPTY_LIST;
     private Runnable task;
@@ -17,7 +17,7 @@ public class Node implements Init {
     }
 
     public Node(Runnable task) {
-        this.task = task;
+        this.task = task == null ? new EmptyRunnable(): task;
     }
 
     @Override
@@ -26,31 +26,47 @@ public class Node implements Init {
     }
 
     public void dependsOn(Node... newDependencies) {
+        if (dependencies == Collections.EMPTY_LIST) {
+            dependencies = new ArrayList<>();
+        }
         for (Node node : newDependencies) {
             if (node.dependencies.contains(this)) {
                 throw new IllegalArgumentException(String.format(
                         "Error adding dependency: %s, circular dependency detected", node));
             }
+            if (!dependencies.contains(node)) {
+                dependencies.add(node);
+            }
         }
-        if (dependencies == Collections.EMPTY_LIST) {
-            dependencies = new ArrayList<>();
-        }
-        Collections.addAll(dependencies, newDependencies);
     }
 
     @Override
     public void run() {
+        System.out.println(String.format("node %s, on thread %s, running", this.toString(), Thread.currentThread().getName()));
         for (Node dependency : dependencies) {
             try {
+                System.out.println(String.format("node %s, on thread %s, waiting for %s", this.toString(), Thread.currentThread().getName(), dependency));
                 dependency.countDownLatch.await();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+            System.out.println(String.format("node %s, on thread %s, resumed by %s", this.toString(), Thread.currentThread().getName(), dependency));
         }
-        if (this.task != null) {
-            this.task.run();
-        }
+
+        runTask();
+
+        System.out.println(String.format("node %s, on thread %s, Countdown", this.toString(), Thread.currentThread().getName()));
         countDownLatch.countDown();
     }
 
+    protected void runTask() {
+        this.task.run();
+    }
+
+    private static class EmptyRunnable implements Runnable {
+        @Override
+        public void run() {
+
+        }
+    }
 }

@@ -5,55 +5,54 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class InitLoader {
 
     private final ExecutorService executorService;
     List<Node> resolved;
-    Node terminationInit;
+    Node terminationNode;
 
-    public InitLoader() {
-        executorService = Executors.newFixedThreadPool(5);
+    public InitLoader(int nThreads) {
+        executorService = Executors.newFixedThreadPool(nThreads);
     }
 
-    public void load(Runnable terminateCallback, Node... inits) {
+    public void load(Runnable terminateCallback, Node... nodes) {
 
         resolved = new ArrayList<>();
-        dep_resolve(Arrays.asList(inits), resolved);
+        dep_resolve(Arrays.asList(nodes), resolved);
 
         for (Node node : resolved) {
-            executorService.submit(node);
+            executorService.execute(node);
+            System.out.printf("submit %s%n", node);
         }
 
-        terminationInit = new Node(terminateCallback);
-        terminationInit.dependsOn(inits);
-        executorService.submit(terminationInit);
+        terminationNode = new Node(terminateCallback);
+        terminationNode.dependsOn(nodes);
+        executorService.execute(terminationNode);
     }
 
-    public void load(Node... inits) {
-        this.load(null, inits);
+    public void load(Node... nodes) {
+        this.load(null, nodes);
     }
 
-    void dep_resolve(List<Node> init, List<Node> resolved) {
-        for (Node node : init) {
+    void dep_resolve(List<Node> nodes, List<Node> resolved) {
+        for (Node node : nodes) {
             dep_resolve(node, resolved);
         }
 
     }
 
-    void dep_resolve(Node init, List<Node> resolved) {
-        for (Node node : init.dependencies) {
-            dep_resolve(node, resolved);
+    void dep_resolve(Node node, List<Node> resolved) {
+        for (Node dependency : node.dependencies) {
+            dep_resolve(dependency, resolved);
         }
-        if (!resolved.contains(init)) {
-            resolved.add(init);
+        if (!resolved.contains(node)) {
+            resolved.add(node);
         }
     }
 
     public void await() throws InterruptedException {
-        for (Node node : resolved) {
-            node.countDownLatch.await();
-        }
-
+        executorService.awaitTermination(5, TimeUnit.SECONDS);
     }
 }
