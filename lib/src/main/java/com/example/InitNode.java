@@ -11,6 +11,7 @@ public class InitNode implements Init {
 
     protected List<InitNode> dependencies = Collections.EMPTY_LIST;
     private Runnable task;
+    private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
 
     public InitNode() {
         this(null);
@@ -42,6 +43,9 @@ public class InitNode implements Init {
 
     @Override
     public void run() {
+        if (this.uncaughtExceptionHandler != null) {
+            Thread.currentThread().setUncaughtExceptionHandler(this.uncaughtExceptionHandler);
+        }
         System.out.println(String.format("%s, on thread %s : RUNNING", this.toString(), Thread.currentThread().getName()));
         for (InitNode dependency : dependencies) {
             try {
@@ -52,7 +56,6 @@ public class InitNode implements Init {
             }
         }
 
-        System.out.println(String.format("%s, on thread %s :   EXECUTE TASK", this.toString(), Thread.currentThread().getName()));
         runTask();
 
         countDownLatch.countDown();
@@ -60,7 +63,15 @@ public class InitNode implements Init {
     }
 
     protected void runTask() {
-        this.task.run();
+        try {
+            this.task.run();
+        } catch (Exception e) {
+            throw new RunTaskError(this, e);
+        }
+    }
+
+    public void setUncaughtExceptionHandler(Thread.UncaughtExceptionHandler uncaughtExceptionHandler) {
+        this.uncaughtExceptionHandler = uncaughtExceptionHandler;
     }
 
     private static class EmptyRunnable implements Runnable {
@@ -75,5 +86,19 @@ public class InitNode implements Init {
         return "InitNode{" +
                 "task=" + task +
                 '}';
+    }
+
+    public static class RunTaskError extends RuntimeException {
+
+        private InitNode node;
+
+        public RunTaskError(InitNode node, Exception e) {
+            super("Failed running node: "+ node, e);
+            this.node = node;
+        }
+
+        public InitNode node() {
+            return node;
+        }
     }
 }

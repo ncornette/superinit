@@ -17,17 +17,34 @@ public class InitLoader {
         executorService = Executors.newFixedThreadPool(nThreads);
     }
 
-    public void load(Runnable loadedCallback, InitNode... initNodes) {
+    public void load(InitLoaderCallback loaderCallback, InitNode... initNodes) {
 
         resolved = new ArrayList<>();
         dep_resolve(Arrays.asList(initNodes), resolved);
 
         for (InitNode initNode : resolved) {
+            initNode.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+                @Override
+                public void uncaughtException(Thread thread, Throwable throwable) {
+                    System.err.println(thread + " error: " + throwable);
+                    if (throwable instanceof InitNode.RunTaskError) {
+                        InitNode.RunTaskError runTaskError = (InitNode.RunTaskError) throwable;
+                        loaderCallback.onError(runTaskError.node(), throwable);
+                    } else {
+                        loaderCallback.onError(null, throwable);
+                    }
+                }
+            });
             executorService.execute(initNode);
             System.out.printf("Load %s%n", initNode);
         }
 
-        endInitNode = new InitNode(loadedCallback);
+        endInitNode = new InitNode(new Runnable() {
+            @Override
+            public void run() {
+                loaderCallback.onTerminate();
+            }
+        });
         endInitNode.dependsOn(initNodes);
         executorService.execute(endInitNode);
     }
@@ -54,5 +71,10 @@ public class InitLoader {
 
     public void await() throws InterruptedException {
         executorService.awaitTermination(5, TimeUnit.SECONDS);
+    }
+
+    public interface InitLoaderCallback {
+        void onTerminate();
+        void onError(InitNode initNode, Throwable t);
     }
 }

@@ -7,6 +7,8 @@ import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
@@ -48,11 +50,24 @@ public class InitLoaderTest {
         new InitLoader(6).load(spyLoadedCallback, initNodes);
 
         //Then
-        verify(spyLoadedCallback, timeout(6000)).run();
+        verify(spyLoadedCallback, timeout(6000)).onTerminate();
     }
 
     @Test
-    public void test_InitLoader_Async() throws Exception {
+    public void test_InitLoader_Task_Error() throws Exception {
+
+        // Given
+        TestInitNode initError = new TestInitNode("ERROR", new WaitErrorTask(50, "ERROR"));
+
+        // When
+        new InitLoader(6).load(spyLoadedCallback, initError);
+
+        //Then
+        verify(spyLoadedCallback, timeout(6000)).onError(eq(initError), any(Throwable.class));
+    }
+
+    @Test
+    public void test_InitLoader_Async_NThreads() throws Exception {
 
         // Given
         initA.dependsOn(initB);
@@ -73,7 +88,7 @@ public class InitLoaderTest {
         new InitLoader(6).load(spyLoadedCallback, initNodes);
 
         //Then
-        verify(spyLoadedCallback, timeout(6000)).run();
+        verify(spyLoadedCallback, timeout(6000)).onTerminate();
     }
 
     @Test
@@ -98,11 +113,11 @@ public class InitLoaderTest {
         new InitLoader(1).load(spyLoadedCallback, initNodes);
 
         //Then
-        verify(spyLoadedCallback, timeout(6000)).run();
+        verify(spyLoadedCallback, timeout(6000)).onTerminate();
     }
 
     @Test
-    public void test_InitLoader_Async_Serial() throws Exception {
+    public void test_InitLoader_Async_Serial_NThreads() throws Exception {
 
         // Given
         initA.dependsOn(initB);
@@ -117,7 +132,26 @@ public class InitLoaderTest {
         new InitLoader(6).load(spyLoadedCallback, initNodes);
 
         //Then
-        verify(spyLoadedCallback, timeout(6000)).run();
+        verify(spyLoadedCallback, timeout(6000)).onTerminate();
+    }
+
+    @Test
+    public void test_InitLoader_Async_Serial_OneThread() throws Exception {
+
+        // Given
+        initA.dependsOn(initB);
+        initB.dependsOn(initC);
+        initC.dependsOn(initD);
+        initD.dependsOn(initE);
+        initE.dependsOn(initF);
+        initF.dependsOn(initG);
+        initG.dependsOn(initH);
+
+        // When
+        new InitLoader(1).load(spyLoadedCallback, initNodes);
+
+        //Then
+        verify(spyLoadedCallback, timeout(6000)).onTerminate();
     }
 
     @Test
@@ -138,7 +172,7 @@ public class InitLoaderTest {
         }
     }
 
-    private static class assertNodesExecutedCallback implements Runnable {
+    private static class assertNodesExecutedCallback implements InitLoader.InitLoaderCallback {
         private final InitNode[] initNodes;
 
         public assertNodesExecutedCallback(InitNode... initNodes) {
@@ -146,9 +180,28 @@ public class InitLoaderTest {
         }
 
         @Override
-        public void run() {
+        public void onTerminate() {
             assertThat(new NodeStartedPredicate()).acceptsAll(Arrays.asList(initNodes));
         }
+
+        @Override
+        public void onError(InitNode initNode, Throwable t) {
+            fail("error", t);
+        }
+    }
+
+    private static class WaitErrorTask extends WaitTask {
+
+        public WaitErrorTask(int millis, String name) {
+            super(millis, name);
+        }
+
+        @Override
+        public void run() {
+            super.run();
+            throw new RuntimeException("Error");
+        }
+
     }
 
     private static class WaitTask implements Runnable {
