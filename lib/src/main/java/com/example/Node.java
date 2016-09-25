@@ -42,21 +42,21 @@ public class Node implements Init {
 
     @Override
     public void run() {
-        System.out.println(String.format("node %s, on thread %s, running", this.toString(), Thread.currentThread().getName()));
+        System.out.println(String.format("%s, on thread %s : RUNNING", this.toString(), Thread.currentThread().getName()));
         for (Node dependency : dependencies) {
             try {
-                System.out.println(String.format("node %s, on thread %s, waiting for %s", this.toString(), Thread.currentThread().getName(), dependency));
+                System.out.println(String.format("%s, on thread %s : WAITING for %s", this.toString(), Thread.currentThread().getName(), dependency));
                 dependency.countDownLatch.await();
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            System.out.println(String.format("node %s, on thread %s, resumed by %s", this.toString(), Thread.currentThread().getName(), dependency));
         }
 
+        System.out.println(String.format("%s, on thread %s : EXECUTE TASK", this.toString(), Thread.currentThread().getName()));
         runTask();
 
-        System.out.println(String.format("node %s, on thread %s, Countdown", this.toString(), Thread.currentThread().getName()));
         countDownLatch.countDown();
+        System.out.println(String.format("%s, on thread %s : END", this.toString(), Thread.currentThread().getName()));
     }
 
     protected void runTask() {
@@ -68,5 +68,12 @@ public class Node implements Init {
         public void run() {
 
         }
+    }
+
+    @Override
+    public String toString() {
+        return "Node{" +
+                "task=" + task +
+                '}';
     }
 }

@@ -24,7 +24,7 @@ public class InitLoader {
 
         for (Node node : resolved) {
             executorService.execute(node);
-            System.out.printf("submit %s%n", node);
+            System.out.printf("Load %s%n", node);
         }
 
         terminationNode = new Node(terminateCallback);

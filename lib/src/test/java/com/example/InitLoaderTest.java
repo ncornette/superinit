@@ -26,14 +26,14 @@ public class InitLoaderTest {
     @Before
     public void setUp() throws Exception {
 
-        initA = new TestNode("A", new Wait(500, "A"));
-        initB = new TestNode("B", new Wait(500, "B"));
-        initC = new TestNode("C", new Wait(500, "C"));
-        initD = new TestNode("D", new Wait(500, "D"));
-        initE = new TestNode("E", new Wait(500, "E"));
-        initF = new TestNode("F", new Wait(500, "F"));
-        initG = new TestNode("G", new Wait(500, "G"));
-        initH = new TestNode("H", new Wait(500, "H"));
+        initA = new TestNode("A", new Wait(50, "A"));
+        initB = new TestNode("B", new Wait(50, "B"));
+        initC = new TestNode("C", new Wait(50, "C"));
+        initD = new TestNode("D", new Wait(50, "D"));
+        initE = new TestNode("E", new Wait(50, "E"));
+        initF = new TestNode("F", new Wait(50, "F"));
+        initG = new TestNode("G", new Wait(50, "G"));
+        initH = new TestNode("H", new Wait(50, "H"));
 
         nodes = new Node[] {initA, initB, initC, initD, initE, initF, initG, initH};
     }
@@ -48,24 +48,6 @@ public class InitLoaderTest {
         InitLoader depLoader = new InitLoader(5);
 
         assertInitialized(depLoader);
-    }
-
-    @Test
-    public void test_InitLoader_Reject_Circular() throws Exception {
-
-        // Given
-        initA.dependsOn(initB);
-
-        try {
-
-            // When
-            initB.dependsOn(initA);
-            fail("Should fail making circular dependency.");
-        } catch (IllegalArgumentException e) {
-
-            // Then
-            assertThat(e.getMessage()).isNotEmpty();
-        }
     }
 
     @Test
@@ -88,6 +70,24 @@ public class InitLoaderTest {
 
         // Then
         assertInitialized(new InitLoader(6));
+    }
+
+    @Test
+    public void test_InitLoader_Reject_Circular_Dependencies() throws Exception {
+
+        // Given
+        initA.dependsOn(initB);
+
+        try {
+
+            // When
+            initB.dependsOn(initA);
+            fail("Should fail making circular dependency.");
+        } catch (IllegalArgumentException e) {
+
+            // Then
+            assertThat(e.getMessage()).isNotEmpty();
+        }
     }
 
     @Test
@@ -138,7 +138,6 @@ public class InitLoaderTest {
 
         @Override
         public void run() {
-            System.out.printf("Running %s on %s%n", name, Thread.currentThread().getName());
             try {
                 Thread.sleep(millis);
             } catch (InterruptedException e) {
