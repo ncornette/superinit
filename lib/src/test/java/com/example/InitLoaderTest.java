@@ -24,7 +24,7 @@ public class InitLoaderTest {
     private TestInitNode initF;
     private TestInitNode initG;
     private TestInitNode initH;
-    private assertNodesExecutedCallback spyLoadedCallback;
+    private AssertNodesExecutedCallback spyLoadedCallback;
 
     @Before
     public void setUp() throws Exception {
@@ -40,7 +40,7 @@ public class InitLoaderTest {
 
         initNodes = new InitNode[] {initA, initB, initC, initD, initE, initF, initG, initH};
 
-        spyLoadedCallback = spy(new assertNodesExecutedCallback(initNodes));
+        spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNodes));
     }
 
     @Test
@@ -58,12 +58,27 @@ public class InitLoaderTest {
 
         // Given
         TestInitNode initError = new TestInitNode("ERROR", new WaitErrorTask(50, "ERROR"));
+        TestInitNode initNode = new TestInitNode("TASK", new WaitTask(50, "TASK"));
+        spyLoadedCallback = spy(new AssertNodesExecutedCallback(initError, initNode));
+
+        initNode.dependsOn(initError);
 
         // When
-        new InitLoader(6).load(spyLoadedCallback, initError);
+        InitLoader initLoader = new InitLoader(6);
+        initLoader.load(spyLoadedCallback, initError, initNode);
 
         //Then
         verify(spyLoadedCallback, timeout(6000)).onError(eq(initError), any(Throwable.class));
+
+        initLoader.await();
+        assertThat(initError.error()).isNotNull();
+        assertThat(initError.finished()).isFalse();
+        assertThat(initError.cancelled()).isFalse();
+
+        assertThat(initNode.error()).isNull();
+        assertThat(initNode.finished()).isFalse();
+        assertThat(initNode.cancelled()).isTrue();
+
     }
 
     @Test
@@ -85,7 +100,7 @@ public class InitLoaderTest {
         // +--- H
 
         // When
-        new InitLoader(6).load(spyLoadedCallback, initNodes);
+        new InitLoader(3).load(spyLoadedCallback, initNodes);
 
         //Then
         verify(spyLoadedCallback, timeout(6000)).onTerminate();
@@ -129,7 +144,7 @@ public class InitLoaderTest {
         initG.dependsOn(initH);
 
         // When
-        new InitLoader(6).load(spyLoadedCallback, initNodes);
+        new InitLoader(3).load(spyLoadedCallback, initNodes);
 
         //Then
         verify(spyLoadedCallback, timeout(6000)).onTerminate();
@@ -172,10 +187,10 @@ public class InitLoaderTest {
         }
     }
 
-    private static class assertNodesExecutedCallback implements InitLoader.InitLoaderCallback {
+    private static class AssertNodesExecutedCallback implements InitLoader.InitLoaderCallback {
         private final InitNode[] initNodes;
 
-        public assertNodesExecutedCallback(InitNode... initNodes) {
+        public AssertNodesExecutedCallback(InitNode... initNodes) {
             this.initNodes = initNodes;
         }
 
@@ -186,7 +201,7 @@ public class InitLoaderTest {
 
         @Override
         public void onError(InitNode initNode, Throwable t) {
-            fail("error", t);
+            //fail("error", t);
         }
     }
 
@@ -246,7 +261,7 @@ public class InitLoaderTest {
 
         @Override
         public void run() {
-            assertThat(isStarted()).overridingErrorMessage(this + " already started").isFalse();
+            assertThat(finished()).overridingErrorMessage(this + " already started").isFalse();
             super.run();
         }
 

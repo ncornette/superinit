@@ -12,6 +12,8 @@ public class InitNode implements Init {
     protected List<InitNode> dependencies = Collections.EMPTY_LIST;
     private Runnable task;
     private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
+    private boolean cancelled;
+    private Exception error;
 
     public InitNode() {
         this(null);
@@ -22,9 +24,18 @@ public class InitNode implements Init {
     }
 
     @Override
-    public boolean isStarted() {
-        return countDownLatch.getCount() == 0;
+    public boolean finished() {
+        return countDownLatch.getCount() == 0 && error() == null && !cancelled();
     }
+
+    public boolean cancelled() {
+        return cancelled;
+    }
+
+    public Exception error() {
+        return error;
+    }
+
 
     public void dependsOn(InitNode... newDependencies) {
         if (dependencies == Collections.EMPTY_LIST) {
@@ -52,8 +63,12 @@ public class InitNode implements Init {
                 System.out.println(String.format("%s, on thread %s :   WAITING for %s", this.toString(), Thread.currentThread().getName(), dependency));
                 dependency.countDownLatch.await();
             } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
+                throw new IllegalStateException("interrupted", e);
             }
+        }
+
+        if (cancelled) {
+            throw new IllegalStateException("Cancelled");
         }
 
         runTask();
@@ -66,12 +81,25 @@ public class InitNode implements Init {
         try {
             this.task.run();
         } catch (Exception e) {
+            error = e;
             throw new RunTaskError(this, e);
         }
     }
 
     public void setUncaughtExceptionHandler(Thread.UncaughtExceptionHandler uncaughtExceptionHandler) {
         this.uncaughtExceptionHandler = uncaughtExceptionHandler;
+    }
+
+    public void cancel() {
+        if (!finished() && error() == null) {
+            cancelled = true;
+        }
+    }
+
+    void unlock() {
+        if (!finished()) {
+            countDownLatch.countDown();
+        }
     }
 
     private static class EmptyRunnable implements Runnable {

@@ -2,9 +2,9 @@ package com.example;
 
 import java.util.function.Predicate;
 
-class NodeStartedPredicate implements Predicate<Init> {
+class NodeStartedPredicate implements Predicate<InitNode> {
     @Override
-    public boolean test(Init init) {
-        return init.isStarted();
+    public boolean test(InitNode init) {
+        return init.finished() || init.cancelled() || init.error() != null;
     }
 }

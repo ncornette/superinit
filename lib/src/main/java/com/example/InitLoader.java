@@ -22,19 +22,23 @@ public class InitLoader {
         resolved = new ArrayList<>();
         dep_resolve(Arrays.asList(initNodes), resolved);
 
-        for (InitNode initNode : resolved) {
-            initNode.setUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-                @Override
-                public void uncaughtException(Thread thread, Throwable throwable) {
-                    System.err.println(thread + " error: " + throwable);
-                    if (throwable instanceof InitNode.RunTaskError) {
-                        InitNode.RunTaskError runTaskError = (InitNode.RunTaskError) throwable;
-                        loaderCallback.onError(runTaskError.node(), throwable);
-                    } else {
-                        loaderCallback.onError(null, throwable);
-                    }
+        Thread.UncaughtExceptionHandler uncaughtExceptionHandler = new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread thread, Throwable throwable) {
+                System.err.println(thread + " error: " + throwable);
+                if (throwable instanceof InitNode.RunTaskError) {
+                    InitNode.RunTaskError runTaskError = (InitNode.RunTaskError) throwable;
+                    loaderCallback.onError(runTaskError.node(), throwable);
+                } else {
+                    loaderCallback.onError(null, throwable);
                 }
-            });
+
+                cancel();
+            }
+        };
+
+        for (InitNode initNode : resolved) {
+            initNode.setUncaughtExceptionHandler(uncaughtExceptionHandler);
             executorService.execute(initNode);
             System.out.printf("Load %s%n", initNode);
         }
@@ -47,6 +51,17 @@ public class InitLoader {
         });
         endInitNode.dependsOn(initNodes);
         executorService.execute(endInitNode);
+    }
+
+    private void cancel() {
+        executorService.shutdown();
+        for (InitNode initNode : resolved) {
+            initNode.cancel();
+        }
+        for (InitNode initNode : resolved) {
+            System.out.println("unlock: " + initNode);
+            initNode.unlock();
+        }
     }
 
     public void load(InitNode... initNodes) {
@@ -70,7 +85,7 @@ public class InitLoader {
     }
 
     public void await() throws InterruptedException {
-        executorService.awaitTermination(5, TimeUnit.SECONDS);
+        executorService.awaitTermination(24, TimeUnit.HOURS);
     }
 
     public interface InitLoaderCallback {
