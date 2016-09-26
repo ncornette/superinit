@@ -2,12 +2,13 @@ package com.example;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.internal.verification.NoMoreInteractions;
 import org.mockito.internal.verification.Times;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -16,11 +17,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class InitLoaderTest {
 
-    private InitNode[] initNodes;
+    protected List<InitNode> initNodes;
     private TestInitNode initA;
     private TestInitNode initB;
     private TestInitNode initC;
@@ -34,16 +34,17 @@ public class InitLoaderTest {
     @Before
     public void setUp() throws Exception {
 
+        initA = new TestInitNode("A", new WaitTask(50, "A"));
         initB = new TestInitNode("B", new WaitTask(50, "B"));
         initD = new TestInitNode("D", new WaitTask(50, "D"));
-        initA = new TestInitNode("A", new WaitTask(50, "A"));
         initC = new TestInitNode("C", new WaitTask(50, "C"));
         initE = new TestInitNode("E", new WaitTask(50, "E"));
         initF = new TestInitNode("F", new WaitTask(50, "F"));
         initG = new TestInitNode("G", new WaitTask(50, "G"));
         initH = new TestInitNode("H", new WaitTask(50, "H"));
 
-        initNodes = new InitNode[] {initA, initB, initC, initD, initE, initF, initG, initH};
+        initNodes = Arrays.asList(initA, initB, initC, initD, initE, initF, initG, initH);
+        Collections.shuffle(initNodes);
 
         spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNodes));
     }
@@ -61,13 +62,17 @@ public class InitLoaderTest {
     @Test
     public void test_InitLoader_Task_Error() throws Exception {
 
-        for (int i = 0; i < 200; i++) {
+        for (int i = 0; i < 100; i++) {
             // Given
-            TestInitNode initNode1 = new TestInitNode("TASK1", new WaitTask(0, "TASK1"));
-            TestInitNode initNode2 = new TestInitNode("TASK2", new WaitTask(0, "TASK2"));
-            TestInitNode initNode3 = new TestInitNode("TASK3", new WaitTask(0, "TASK3"));
             TestInitNode initError = new TestInitNode("ERROR", new WaitErrorTask(0, "ERROR"));
-            spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNode1, initError, initNode2, initNode3));
+            TestInitNode initNode3 = new TestInitNode("TASK3", new WaitTask(0, "TASK3"));
+            TestInitNode initNode2 = new TestInitNode("TASK2", new WaitTask(0, "TASK2"));
+            TestInitNode initNode1 = new TestInitNode("TASK1", new WaitTask(0, "TASK1"));
+            List<InitNode> nodes = Arrays.asList(initError, initNode1, initNode2, initNode3);
+
+            Collections.shuffle(nodes);
+
+            spyLoadedCallback = spy(new AssertNodesExecutedCallback(nodes));
 
             initNode1.dependsOn(initError);
 
@@ -86,7 +91,6 @@ public class InitLoaderTest {
 
             assertThat(initNode1.error()).isNull();
             assertThat(initNode1.success()).isFalse();
-            assertThat(initNode1.cancelled()).isTrue();
 
 
             assertThat(initNode2.error()).isNull();
@@ -117,7 +121,7 @@ public class InitLoaderTest {
 
         // When
         Collection<InitNode> resolved = new ArrayList<>();
-        InitLoader.dep_resolve(Arrays.asList(initNodes), resolved);
+        InitLoader.dep_resolve(initNodes, resolved);
 
         //Then
         boolean atStart = true;
@@ -243,15 +247,19 @@ public class InitLoaderTest {
     }
 
     private static class AssertNodesExecutedCallback implements InitLoader.InitLoaderCallback {
-        private final InitNode[] initNodes;
+        private final Collection<InitNode> initNodes;
 
         public AssertNodesExecutedCallback(InitNode... initNodes) {
+            this(Arrays.asList(initNodes));
+        }
+
+        public AssertNodesExecutedCallback(List<InitNode> initNodes) {
             this.initNodes = initNodes;
         }
 
         @Override
         public void onTerminate() {
-            assertThat(new NodeStartedPredicate()).acceptsAll(Arrays.asList(initNodes));
+            assertThat(new NodeStartedPredicate()).acceptsAll(initNodes);
         }
 
         @Override

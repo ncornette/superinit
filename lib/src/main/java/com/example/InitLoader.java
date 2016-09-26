@@ -11,7 +11,6 @@ public class InitLoader {
 
     private final ExecutorService executorService;
     Collection<InitNode> resolved;
-    private InitNode endNode;
 
     public InitLoader(int nThreads) {
         executorService = Executors.newFixedThreadPool(nThreads);
@@ -23,6 +22,10 @@ public class InitLoader {
         }
         resolved = new ArrayList<>();
         dep_resolve(initNodes, resolved);
+
+        InitNode endNode = new InitNode(new NotifyTerminateTask(loaderCallback));
+        endNode.dependsOn(resolved);
+        resolved.add(endNode);
 
         try {
             executeNodes(loaderCallback, resolved);
@@ -41,11 +44,6 @@ public class InitLoader {
             executorService.execute(node);
             System.out.printf("Load %s%n", node);
         }
-
-        endNode = new InitNode(new NotifyTerminateTask(loaderCallback));
-        endNode.setUncaughtExceptionHandler(new LoadUncaughtExceptionHandler(loaderCallback));
-        endNode.dependsOn(nodes);
-        executorService.execute(endNode);
     }
 
     private void cancel() {
@@ -53,8 +51,6 @@ public class InitLoader {
         for (InitNode initNode : resolved) {
             initNode.cancel();
         }
-        endNode.cancel();
-        endNode.unlock();
         for (InitNode initNode : resolved) {
             System.out.println("unlock: " + initNode);
             initNode.unlock();
