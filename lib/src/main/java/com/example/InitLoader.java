@@ -86,6 +86,7 @@ public class InitLoader {
         executorService.awaitTermination(24, TimeUnit.HOURS);
     }
 
+
     public interface InitLoaderCallback {
         void onTerminate();
         void onError(InitNode initNode, Throwable t);
@@ -100,7 +101,6 @@ public class InitLoader {
 
         @Override
         public void uncaughtException(Thread thread, Throwable throwable) {
-            //System.err.println(thread + " error: " + throwable);
             if (throwable instanceof InitNode.RunTaskError) {
                 InitNode.RunTaskError runTaskError = (InitNode.RunTaskError) throwable;
                 loaderCallback.onError(runTaskError.node(), throwable);

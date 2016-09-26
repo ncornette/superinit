@@ -48,7 +48,7 @@ public class InitNode implements Init {
             dependencies = new ArrayList<>();
         }
         for (InitNode initNode : newDependencies) {
-            if (initNode.dependencies.contains(this)) {
+            if (initNode.dependencies.contains(this) || initNode == this) {
                 throw new IllegalArgumentException(String.format(
                         "Error adding dependency: %s, circular dependency detected", initNode));
             }
