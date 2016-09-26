@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class InitNode implements Init {
+public class InitNode implements Runnable {
 
     private CountDownLatch countDownLatch = new CountDownLatch(1);
 
@@ -26,7 +26,6 @@ public class InitNode implements Init {
         this.task = task == null ? new EmptyRunnable(): task;
     }
 
-    @Override
     public boolean finished() {
         return countDownLatch.getCount() == 0;
     }
