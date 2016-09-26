@@ -1,9 +1,12 @@
 package com.example;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class InitNode implements Init {
 
@@ -12,7 +15,7 @@ public class InitNode implements Init {
     protected List<InitNode> dependencies = Collections.EMPTY_LIST;
     private Runnable task;
     private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
-    private boolean cancelled;
+    private AtomicBoolean cancelled = new AtomicBoolean(false);
     private Exception error;
 
     public InitNode() {
@@ -25,19 +28,22 @@ public class InitNode implements Init {
 
     @Override
     public boolean finished() {
-        return countDownLatch.getCount() == 0 && error() == null && !cancelled();
+        return countDownLatch.getCount() == 0;
+    }
+
+    public boolean success() {
+        return !cancelled() && error() == null && finished();
     }
 
     public boolean cancelled() {
-        return cancelled;
+        return cancelled.get();
     }
 
     public Exception error() {
         return error;
     }
 
-
-    public void dependsOn(InitNode... newDependencies) {
+    public void dependsOn(Collection<InitNode> newDependencies) {
         if (dependencies == Collections.EMPTY_LIST) {
             dependencies = new ArrayList<>();
         }
@@ -50,6 +56,10 @@ public class InitNode implements Init {
                 dependencies.add(initNode);
             }
         }
+    }
+
+    public void dependsOn(InitNode... newDependencies) {
+        dependsOn(Arrays.asList(newDependencies));
     }
 
     @Override
@@ -67,13 +77,15 @@ public class InitNode implements Init {
             }
         }
 
-        if (cancelled) {
-            throw new IllegalStateException("Cancelled");
+        if (cancelled.get()) {
+            System.out.println(String.format("%s, on thread %s :   CANCELLED", this.toString(), Thread.currentThread().getName()));
+            throw new TaskCancelledError(this, null);
         }
 
         runTask();
 
         countDownLatch.countDown();
+        cancelled.set(false);
         System.out.println(String.format("%s, on thread %s : END", this.toString(), Thread.currentThread().getName()));
     }
 
@@ -92,12 +104,12 @@ public class InitNode implements Init {
 
     public void cancel() {
         if (!finished() && error() == null) {
-            cancelled = true;
+            cancelled.set(true);
         }
     }
 
     void unlock() {
-        if (!finished()) {
+        if (countDownLatch.getCount() == 1) {
             countDownLatch.countDown();
         }
     }
@@ -127,6 +139,13 @@ public class InitNode implements Init {
 
         public InitNode node() {
             return node;
+        }
+    }
+
+    public static class TaskCancelledError extends RunTaskError {
+
+        public TaskCancelledError(InitNode node, Exception e) {
+            super(node, e);
         }
     }
 }

@@ -2,7 +2,7 @@ package com.example;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -10,47 +10,42 @@ import java.util.concurrent.TimeUnit;
 public class InitLoader {
 
     private final ExecutorService executorService;
-    List<InitNode> resolved;
-    private InitNode endInitNode;
+    Collection<InitNode> resolved;
+    private InitNode endNode;
 
     public InitLoader(int nThreads) {
         executorService = Executors.newFixedThreadPool(nThreads);
     }
 
-    public void load(InitLoaderCallback loaderCallback, InitNode... initNodes) {
-
+    public void load(InitLoaderCallback loaderCallback, Collection<InitNode> initNodes) {
+        if (resolved != null) {
+            throw new IllegalStateException("Load() method already called");
+        }
         resolved = new ArrayList<>();
-        dep_resolve(Arrays.asList(initNodes), resolved);
+        dep_resolve(initNodes, resolved);
 
-        Thread.UncaughtExceptionHandler uncaughtExceptionHandler = new Thread.UncaughtExceptionHandler() {
-            @Override
-            public void uncaughtException(Thread thread, Throwable throwable) {
-                System.err.println(thread + " error: " + throwable);
-                if (throwable instanceof InitNode.RunTaskError) {
-                    InitNode.RunTaskError runTaskError = (InitNode.RunTaskError) throwable;
-                    loaderCallback.onError(runTaskError.node(), throwable);
-                } else {
-                    loaderCallback.onError(null, throwable);
-                }
+        try {
+            executeNodes(loaderCallback, resolved);
+        } catch (Exception e) {
+            loaderCallback.onError(null, e);
+        }
+    }
 
-                cancel();
-            }
-        };
+    public void load(InitLoaderCallback loaderCallback, InitNode... initNodes) {
+        load(loaderCallback, Arrays.asList(initNodes));
+    }
 
-        for (InitNode initNode : resolved) {
-            initNode.setUncaughtExceptionHandler(uncaughtExceptionHandler);
-            executorService.execute(initNode);
-            System.out.printf("Load %s%n", initNode);
+    private void executeNodes(InitLoaderCallback loaderCallback, Collection<InitNode> nodes) {
+        for (InitNode node : nodes) {
+            node.setUncaughtExceptionHandler(new LoadUncaughtExceptionHandler(loaderCallback));
+            executorService.execute(node);
+            System.out.printf("Load %s%n", node);
         }
 
-        endInitNode = new InitNode(new Runnable() {
-            @Override
-            public void run() {
-                loaderCallback.onTerminate();
-            }
-        });
-        endInitNode.dependsOn(initNodes);
-        executorService.execute(endInitNode);
+        endNode = new InitNode(new NotifyTerminateTask(loaderCallback));
+        endNode.setUncaughtExceptionHandler(new LoadUncaughtExceptionHandler(loaderCallback));
+        endNode.dependsOn(nodes);
+        executorService.execute(endNode);
     }
 
     private void cancel() {
@@ -58,6 +53,8 @@ public class InitLoader {
         for (InitNode initNode : resolved) {
             initNode.cancel();
         }
+        endNode.cancel();
+        endNode.unlock();
         for (InitNode initNode : resolved) {
             System.out.println("unlock: " + initNode);
             initNode.unlock();
@@ -68,14 +65,19 @@ public class InitLoader {
         this.load(null, initNodes);
     }
 
-    void dep_resolve(List<InitNode> initNodes, List<InitNode> resolved) {
+    static void dep_resolve(Collection<InitNode> initNodes, Collection<InitNode> resolved) {
+        for (InitNode initNode : initNodes) {
+            if (initNode.dependencies.isEmpty()) {
+                resolved.add(initNode);
+            }
+        }
         for (InitNode initNode : initNodes) {
             dep_resolve(initNode, resolved);
         }
 
     }
 
-    void dep_resolve(InitNode initNode, List<InitNode> resolved) {
+    private static void dep_resolve(InitNode initNode, Collection<InitNode> resolved) {
         for (InitNode dependency : initNode.dependencies) {
             dep_resolve(dependency, resolved);
         }
@@ -91,5 +93,39 @@ public class InitLoader {
     public interface InitLoaderCallback {
         void onTerminate();
         void onError(InitNode initNode, Throwable t);
+    }
+
+    private class LoadUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
+        private final InitLoaderCallback loaderCallback;
+
+        public LoadUncaughtExceptionHandler(InitLoaderCallback loaderCallback) {
+            this.loaderCallback = loaderCallback;
+        }
+
+        @Override
+        public void uncaughtException(Thread thread, Throwable throwable) {
+            //System.err.println(thread + " error: " + throwable);
+            if (throwable instanceof InitNode.RunTaskError) {
+                InitNode.RunTaskError runTaskError = (InitNode.RunTaskError) throwable;
+                loaderCallback.onError(runTaskError.node(), throwable);
+            } else {
+                loaderCallback.onError(null, throwable);
+            }
+
+            cancel();
+        }
+    }
+
+    private static class NotifyTerminateTask implements Runnable {
+        private final InitLoaderCallback loaderCallback;
+
+        public NotifyTerminateTask(InitLoaderCallback loaderCallback) {
+            this.loaderCallback = loaderCallback;
+        }
+
+        @Override
+        public void run() {
+            loaderCallback.onTerminate();
+        }
     }
 }

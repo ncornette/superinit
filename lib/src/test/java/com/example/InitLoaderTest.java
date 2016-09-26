@@ -2,8 +2,12 @@ package com.example;
 
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.internal.verification.NoMoreInteractions;
+import org.mockito.internal.verification.Times;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -12,6 +16,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class InitLoaderTest {
 
@@ -29,10 +34,10 @@ public class InitLoaderTest {
     @Before
     public void setUp() throws Exception {
 
-        initA = new TestInitNode("A", new WaitTask(50, "A"));
         initB = new TestInitNode("B", new WaitTask(50, "B"));
-        initC = new TestInitNode("C", new WaitTask(50, "C"));
         initD = new TestInitNode("D", new WaitTask(50, "D"));
+        initA = new TestInitNode("A", new WaitTask(50, "A"));
+        initC = new TestInitNode("C", new WaitTask(50, "C"));
         initE = new TestInitNode("E", new WaitTask(50, "E"));
         initF = new TestInitNode("F", new WaitTask(50, "F"));
         initG = new TestInitNode("G", new WaitTask(50, "G"));
@@ -56,40 +61,44 @@ public class InitLoaderTest {
     @Test
     public void test_InitLoader_Task_Error() throws Exception {
 
-        // Given
-        TestInitNode initError = new TestInitNode("ERROR", new WaitErrorTask(50, "ERROR"));
-        TestInitNode initNode = new TestInitNode("TASK", new WaitTask(50, "TASK"));
-        spyLoadedCallback = spy(new AssertNodesExecutedCallback(initError, initNode));
+        for (int i = 0; i < 200; i++) {
+            // Given
+            TestInitNode initNode1 = new TestInitNode("TASK1", new WaitTask(0, "TASK1"));
+            TestInitNode initNode2 = new TestInitNode("TASK2", new WaitTask(0, "TASK2"));
+            TestInitNode initNode3 = new TestInitNode("TASK3", new WaitTask(0, "TASK3"));
+            TestInitNode initError = new TestInitNode("ERROR", new WaitErrorTask(0, "ERROR"));
+            spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNode1, initError, initNode2, initNode3));
 
-        initNode.dependsOn(initError);
+            initNode1.dependsOn(initError);
 
-        // When
-        InitLoader initLoader = new InitLoader(6);
-        initLoader.load(spyLoadedCallback, initError, initNode);
+            // When
+            InitLoader initLoader = new InitLoader(6);
+            initLoader.load(spyLoadedCallback, initNode1, initError, initNode2, initNode3);
 
-        //Then
-        verify(spyLoadedCallback, timeout(6000)).onError(eq(initError), any(Throwable.class));
+            //Then
+            verify(spyLoadedCallback, timeout(6000)).onError(eq(initError), any(Throwable.class));
 
-        initLoader.await();
-        assertThat(initError.error()).isNotNull();
-        assertThat(initError.finished()).isFalse();
-        assertThat(initError.cancelled()).isFalse();
+            initLoader.await();
+            verify(spyLoadedCallback, new Times(0)).onTerminate();
 
-        assertThat(initNode.error()).isNull();
-        assertThat(initNode.finished()).isFalse();
-        assertThat(initNode.cancelled()).isTrue();
+            assertThat(initError.error()).isNotNull();
+            assertThat(initError.success()).isFalse();
 
+            assertThat(initNode1.error()).isNull();
+            assertThat(initNode1.success()).isFalse();
+            assertThat(initNode1.cancelled()).isTrue();
+
+
+            assertThat(initNode2.error()).isNull();
+            assertThat(initNode2.success() || initNode2.cancelled()).isTrue();
+
+            assertThat(initNode3.error()).isNull();
+            assertThat(initNode3.success() || initNode3.cancelled()).isTrue();
+        }
     }
 
     @Test
-    public void test_InitLoader_Async_NThreads() throws Exception {
-
-        // Given
-        initA.dependsOn(initB);
-        initB.dependsOn(initC);
-        initD.dependsOn(initC);
-        initF.dependsOn(initB);
-
+    public void test_InitLoader_Async_CheckOrder() throws Exception {
         // +--- C
         // |    +--- D
         // |    \--- B
@@ -98,6 +107,52 @@ public class InitLoaderTest {
         // +--- E
         // +--- G
         // +--- H
+
+        // Given
+        initA.dependsOn(initB);
+        initB.dependsOn(initC);
+        initD.dependsOn(initC);
+        initF.dependsOn(initB);
+
+
+        // When
+        Collection<InitNode> resolved = new ArrayList<>();
+        InitLoader.dep_resolve(Arrays.asList(initNodes), resolved);
+
+        //Then
+        boolean atStart = true;
+        InitNode previousNode = null;
+        for (InitNode initNode : resolved) {
+            if (initNode.dependencies.isEmpty()) {
+                if (!atStart) {
+                    fail(String.format("Independent %s encountered after dependent Node %s\n" +
+                            "All independent Nodes should be executed first.",
+                            initNode, previousNode));
+                }
+            } else {
+                atStart = false;
+            }
+            previousNode = initNode;
+        }
+    }
+
+    @Test
+    public void test_InitLoader_Async_NThreads() throws Exception {
+        // +--- C
+        // |    +--- D
+        // |    \--- B
+        // |         +--- A
+        // |         \--- F
+        // +--- E
+        // +--- G
+        // +--- H
+
+        // Given
+        initA.dependsOn(initB);
+        initB.dependsOn(initC);
+        initD.dependsOn(initC);
+        initF.dependsOn(initB);
+
 
         // When
         new InitLoader(3).load(spyLoadedCallback, initNodes);
@@ -108,13 +163,6 @@ public class InitLoaderTest {
 
     @Test
     public void test_InitLoader_Async_OneThread() throws Exception {
-
-        // Given
-        initA.dependsOn(initB);
-        initB.dependsOn(initC);
-        initD.dependsOn(initC);
-        initF.dependsOn(initB);
-
         // +--- C
         // |    +--- D
         // |    \--- B
@@ -123,6 +171,13 @@ public class InitLoaderTest {
         // +--- E
         // +--- G
         // +--- H
+
+        // Given
+        initA.dependsOn(initB);
+        initB.dependsOn(initC);
+        initD.dependsOn(initC);
+        initF.dependsOn(initB);
+
 
         // When
         new InitLoader(1).load(spyLoadedCallback, initNodes);
@@ -261,6 +316,9 @@ public class InitLoaderTest {
 
         @Override
         public void run() {
+            if (cancelled()) {
+                return;
+            }
             assertThat(finished()).overridingErrorMessage(this + " already started").isFalse();
             super.run();
         }
