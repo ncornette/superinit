@@ -3,6 +3,7 @@ package com.example;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -63,19 +64,29 @@ public class InitLoader {
 
     static void dep_resolve(Collection<InitNode> initNodes, Collection<InitNode> resolved) {
         for (InitNode initNode : initNodes) {
-            if (initNode.dependencies.isEmpty()) {
+            if (initNode.parents.isEmpty()) {
+                // Insert orphans first
                 resolved.add(initNode);
             }
         }
+
+        List<InitNode> seen = new ArrayList<>();
         for (InitNode initNode : initNodes) {
-            dep_resolve(initNode, resolved);
+            seen.clear();
+            dep_resolve(initNode, resolved, seen);
         }
 
     }
 
-    private static void dep_resolve(InitNode initNode, Collection<InitNode> resolved) {
-        for (InitNode dependency : initNode.dependencies) {
-            dep_resolve(dependency, resolved);
+    private static void dep_resolve(InitNode initNode, Collection<InitNode> resolved, Collection<InitNode> seen) {
+        seen.add(initNode);
+        for (InitNode dependency : initNode.parents) {
+            if (!resolved.contains(dependency)) {
+                if (seen.contains(dependency)) {
+                    throw new IllegalArgumentException(String.format("Circular Dependency: %s --> %s", initNode, dependency));
+                }
+                dep_resolve(dependency, resolved, seen);
+            }
         }
         if (!resolved.contains(initNode)) {
             resolved.add(initNode);
@@ -101,14 +112,20 @@ public class InitLoader {
 
         @Override
         public void uncaughtException(Thread thread, Throwable throwable) {
-            if (throwable instanceof InitNode.RunTaskError) {
-                InitNode.RunTaskError runTaskError = (InitNode.RunTaskError) throwable;
-                loaderCallback.onError(runTaskError.node(), throwable);
+            if (throwable instanceof InitNode.TaskExecutionError) {
+                InitNode.TaskExecutionError taskExecutionError = (InitNode.TaskExecutionError) throwable;
+                loaderCallback.onError(taskExecutionError.node(), throwable);
             } else {
                 loaderCallback.onError(null, throwable);
             }
 
             cancel();
+
+            try {
+                await();
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
         }
     }
 

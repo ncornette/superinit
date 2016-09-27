@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -29,8 +28,8 @@ public abstract class InitLoaderTest {
     protected TestInitNode initF;
     protected TestInitNode initG;
     protected TestInitNode initH;
-    protected AssertNodesExecutedCallback spyLoadedCallback;
     protected TestInitNode initI;
+    protected AssertNodesExecutedCallback spyLoadedCallback;
 
     @Before
     public void setUp() throws Exception {
@@ -56,58 +55,6 @@ public abstract class InitLoaderTest {
     }
 
     protected abstract void setupDependencies();
-
-    @Test
-    public void test_InitLoader_Task_Error() throws Exception {
-
-        // Given
-        setupDependencies();
-        TestInitNode initError = new TestInitNode("ERROR", new WaitErrorTask(0, "ERROR"));
-        initNodes.get(new Random().nextInt(initNodes.size())).dependsOn(initError);
-        initNodes.add(initError);
-        spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNodes));
-
-        // When
-        InitLoader initLoader = new InitLoader(6);
-        initLoader.load(spyLoadedCallback, initNodes);
-
-        //Then
-        verify(spyLoadedCallback, timeout(6000)).onError(eq(initError), any(Throwable.class));
-
-        initLoader.await();
-        verify(spyLoadedCallback, new Times(0)).onTerminate();
-
-        assertThat(initError.error()).isNotNull();
-        assertThat(initError.success()).isFalse();
-
-    }
-
-    @Test
-    public void test_InitLoader_CheckOrder() throws Exception {
-
-        // Given
-        setupDependencies();
-
-        // When
-        Collection<InitNode> resolved = new ArrayList<>();
-        InitLoader.dep_resolve(initNodes, resolved);
-
-        //Then
-        boolean atStart = true;
-        InitNode previousNode = null;
-        for (InitNode initNode : resolved) {
-            if (initNode.dependencies.isEmpty()) {
-                if (!atStart) {
-                    fail(String.format("Independent %s encountered after dependent Node %s\n" +
-                            "All independent Nodes should be executed first.",
-                            initNode, previousNode));
-                }
-            } else {
-                atStart = false;
-            }
-            previousNode = initNode;
-        }
-    }
 
     @Test
     public void test_InitLoader_1Thread() throws Exception {
@@ -175,7 +122,7 @@ public abstract class InitLoaderTest {
     }
 
     @Test
-    public void test_InitLoader_Reject_Circular_Dependencies() throws Exception {
+    public void test_InitLoader_Reject_Direct_Circular_Dependencies() throws Exception {
 
         // Given
         initA.dependsOn(initB);
@@ -193,6 +140,27 @@ public abstract class InitLoaderTest {
     }
 
     @Test
+    public void test_InitLoader_Reject_Indirect_Circular_Dependencies() throws Exception {
+
+        // Given
+        initA.dependsOn(initB);
+        initB.dependsOn(initC);
+        initC.dependsOn(initA);
+
+        try {
+
+            // When
+            new InitLoader(6).load(spyLoadedCallback, initNodes);
+            fail("Should fail with circular dependency.");
+        } catch (IllegalArgumentException e) {
+
+            // Then
+            System.out.println(e.getMessage());
+            assertThat(e.getMessage()).isNotEmpty();
+        }
+    }
+
+    @Test
     public void test_InitLoader_Reject_Self_Dependency() throws Exception {
 
         try {
@@ -205,6 +173,65 @@ public abstract class InitLoaderTest {
             // Then
             assertThat(e.getMessage()).isNotEmpty();
         }
+    }
+
+    @Test
+    public void test_InitLoader_CheckOrder() throws Exception {
+
+        // Given
+        setupDependencies();
+
+        // When
+        Collection<InitNode> resolved = new ArrayList<>();
+        InitLoader.dep_resolve(initNodes, resolved);
+
+        //Then
+        boolean atStart = true;
+        InitNode previousNode = null;
+        for (InitNode initNode : resolved) {
+            if (initNode.parents.isEmpty()) {
+                if (!atStart) {
+                    fail(String.format("Independent %s encountered after dependent Node %s\n" +
+                                    "All independent Nodes should be executed first.",
+                            initNode, previousNode));
+                }
+            } else {
+                atStart = false;
+            }
+            previousNode = initNode;
+        }
+    }
+
+    @Test
+    public void test_InitLoader_Task_Error() throws Exception {
+
+        // Given
+        setupDependencies();
+        TestInitNode initError = new TestInitNode("ERROR", new WaitTaskError(0, "ERROR"));
+        initError.dependsOn(initG);
+        initNodes.add(initError);
+        spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNodes));
+
+        // When
+        InitLoader initLoader = new InitLoader(6);
+        initLoader.load(spyLoadedCallback, initNodes);
+
+        //Then
+        verify(spyLoadedCallback, timeout(6000)).onError(eq(initError), any(Throwable.class));
+
+        initLoader.await();
+        verify(spyLoadedCallback, new Times(0)).onTerminate();
+
+        assertThat(initError.error()).isNotNull();
+        assertThat(initError.success()).isFalse();
+
+        for (InitNode initNode : initNodes) {
+            if (initNode != initError) {
+                assertThat(initNode.error()).isNull();
+                assertThat(initNode.success() || initNode.cancelled()).isTrue();
+            }
+        }
+
     }
 
     private static class AssertNodesExecutedCallback implements InitLoader.InitLoaderCallback {
@@ -225,13 +252,13 @@ public abstract class InitLoaderTest {
 
         @Override
         public void onError(InitNode initNode, Throwable t) {
-            //fail("error", t);
+            t.printStackTrace();
         }
     }
 
-    private static class WaitErrorTask extends WaitTask {
+    private static class WaitTaskError extends WaitTask {
 
-        public WaitErrorTask(int millis, String name) {
+        public WaitTaskError(int millis, String name) {
             super(millis, name);
         }
 
@@ -295,7 +322,7 @@ public abstract class InitLoaderTest {
 
         @Override
         protected void runTask() {
-            for (InitNode dependency : dependencies) {
+            for (InitNode dependency : parents) {
                 assertThat(new NodeStartedPredicate()).accepts(dependency);
             }
 

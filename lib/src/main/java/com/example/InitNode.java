@@ -1,21 +1,24 @@
 package com.example;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class InitNode implements Runnable {
 
+    private static final Set<InitNode> NO_NODES = Collections.emptySet();
+
     private CountDownLatch countDownLatch = new CountDownLatch(1);
 
-    protected List<InitNode> dependencies = Collections.EMPTY_LIST;
+    protected Set<InitNode> parents = NO_NODES;
+    protected Set<InitNode> children = NO_NODES;
+
     private Runnable task;
     private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
-    private AtomicBoolean cancelled = new AtomicBoolean(false);
+    private boolean cancelled = false;
     private Exception error;
 
     public InitNode() {
@@ -35,26 +38,39 @@ public class InitNode implements Runnable {
     }
 
     public boolean cancelled() {
-        return cancelled.get();
+        return cancelled;
     }
 
     public Exception error() {
         return error;
     }
 
-    public void dependsOn(Collection<InitNode> newDependencies) {
-        if (dependencies == Collections.EMPTY_LIST) {
-            dependencies = new ArrayList<>();
+    public void dependsOn(Collection<InitNode> parentNodes) {
+        if (parents == NO_NODES) {
+            parents = new HashSet<>();
         }
-        for (InitNode initNode : newDependencies) {
-            if (initNode.dependencies.contains(this) || initNode == this) {
+        for (InitNode parentNode : parentNodes) {
+            if (parentNode.parents.contains(this) || parentNode == this) {
                 throw new IllegalArgumentException(String.format(
-                        "Error adding dependency: %s, circular dependency detected", initNode));
-            }
-            if (!dependencies.contains(initNode)) {
-                dependencies.add(initNode);
+                        "Error adding dependency: %s, circular dependency detected", parentNode));
             }
         }
+        setParents(parentNodes);
+        setChildOf(parentNodes);
+    }
+
+    private boolean setParents(Collection<InitNode> parentNodes) {
+        return parents.addAll(parentNodes);
+    }
+
+    private void setChildOf(Collection<InitNode> parentNodes) {
+        for (InitNode parentNode : parentNodes) {
+            if (parentNode.children == NO_NODES) {
+                parentNode.children = new HashSet<>();
+            }
+            parentNode.children.add(this);
+        }
+
     }
 
     public void dependsOn(InitNode... newDependencies) {
@@ -67,7 +83,7 @@ public class InitNode implements Runnable {
             Thread.currentThread().setUncaughtExceptionHandler(this.uncaughtExceptionHandler);
         }
         System.out.println(String.format("%s, on thread %s : RUNNING", this.toString(), Thread.currentThread().getName()));
-        for (InitNode dependency : dependencies) {
+        for (InitNode dependency : parents) {
             try {
                 System.out.println(String.format("%s, on thread %s :   WAITING for %s", this.toString(), Thread.currentThread().getName(), dependency));
                 dependency.countDownLatch.await();
@@ -76,15 +92,15 @@ public class InitNode implements Runnable {
             }
         }
 
-        if (cancelled.get()) {
+        if (cancelled) {
             System.out.println(String.format("%s, on thread %s :   CANCELLED", this.toString(), Thread.currentThread().getName()));
-            throw new TaskCancelledError(this, null);
+            return;
         }
 
         runTask();
 
         countDownLatch.countDown();
-        cancelled.set(false);
+        cancelled = false;
         System.out.println(String.format("%s, on thread %s : END", this.toString(), Thread.currentThread().getName()));
     }
 
@@ -93,7 +109,7 @@ public class InitNode implements Runnable {
             this.task.run();
         } catch (Exception e) {
             error = e;
-            throw new RunTaskError(this, e);
+            throw new TaskExecutionError(this, e);
         }
     }
 
@@ -103,7 +119,7 @@ public class InitNode implements Runnable {
 
     public void cancel() {
         if (!finished() && error() == null) {
-            cancelled.set(true);
+            cancelled = true;
         }
     }
 
@@ -127,11 +143,11 @@ public class InitNode implements Runnable {
                 '}';
     }
 
-    public static class RunTaskError extends RuntimeException {
+    public static class TaskExecutionError extends RuntimeException {
 
         private InitNode node;
 
-        public RunTaskError(InitNode node, Exception e) {
+        public TaskExecutionError(InitNode node, Exception e) {
             super("Failed running node: "+ node, e);
             this.node = node;
         }
@@ -141,7 +157,7 @@ public class InitNode implements Runnable {
         }
     }
 
-    public static class TaskCancelledError extends RunTaskError {
+    public static class TaskCancelledError extends TaskExecutionError {
 
         public TaskCancelledError(InitNode node, Exception e) {
             super(node, e);
