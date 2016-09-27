@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit;
 public class InitLoader {
 
     private final ExecutorService executorService;
-    Collection<InitNode> resolved;
+    private Collection<InitNode> resolved;
 
     public InitLoader(int nThreads) {
         executorService = Executors.newFixedThreadPool(nThreads);
@@ -39,9 +39,13 @@ public class InitLoader {
         load(loaderCallback, Arrays.asList(initNodes));
     }
 
+    public void load(InitNode... initNodes) {
+        this.load(null, initNodes);
+    }
+
     private void executeNodes(InitLoaderCallback loaderCallback, Collection<InitNode> nodes) {
         for (InitNode node : nodes) {
-            node.setUncaughtExceptionHandler(new LoadUncaughtExceptionHandler(loaderCallback));
+            node.setUncaughtExceptionHandler(new NodeUncaughtExceptionHandler(this, loaderCallback));
             executorService.execute(node);
             System.out.printf("Load %s%n", node);
         }
@@ -56,10 +60,6 @@ public class InitLoader {
             System.out.println("unlock: " + initNode);
             initNode.unlock();
         }
-    }
-
-    public void load(InitNode... initNodes) {
-        this.load(null, initNodes);
     }
 
     static void dep_resolve(Collection<InitNode> initNodes, Collection<InitNode> resolved) {
@@ -94,7 +94,9 @@ public class InitLoader {
     }
 
     public void await() throws InterruptedException {
-        executorService.awaitTermination(24, TimeUnit.HOURS);
+        for (InitNode initNode : resolved) {
+            initNode.await();
+        }
     }
 
 
@@ -103,10 +105,12 @@ public class InitLoader {
         void onError(InitNode initNode, Throwable t);
     }
 
-    private class LoadUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
+    private static class NodeUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
+        private InitLoader initLoader;
         private final InitLoaderCallback loaderCallback;
 
-        public LoadUncaughtExceptionHandler(InitLoaderCallback loaderCallback) {
+        public NodeUncaughtExceptionHandler(InitLoader initLoader, InitLoaderCallback loaderCallback) {
+            this.initLoader = initLoader;
             this.loaderCallback = loaderCallback;
         }
 
@@ -115,16 +119,11 @@ public class InitLoader {
             if (throwable instanceof InitNode.TaskExecutionError) {
                 InitNode.TaskExecutionError taskExecutionError = (InitNode.TaskExecutionError) throwable;
                 loaderCallback.onError(taskExecutionError.node(), throwable);
+                taskExecutionError.node().cancelTree();
             } else {
+                // Cancel all tasks from initloader
                 loaderCallback.onError(null, throwable);
-            }
-
-            cancel();
-
-            try {
-                await();
-            } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
+                initLoader.cancel();
             }
         }
     }

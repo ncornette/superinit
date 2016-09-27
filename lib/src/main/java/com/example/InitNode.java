@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class InitNode implements Runnable {
 
@@ -13,8 +14,8 @@ public class InitNode implements Runnable {
 
     private CountDownLatch countDownLatch = new CountDownLatch(1);
 
-    protected Set<InitNode> parents = NO_NODES;
-    protected Set<InitNode> children = NO_NODES;
+    Set<InitNode> parents = NO_NODES;
+    Set<InitNode> children = NO_NODES;
 
     private Runnable task;
     private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
@@ -34,14 +35,18 @@ public class InitNode implements Runnable {
     }
 
     public boolean success() {
-        return !cancelled() && error() == null && finished();
+        return finished() && !cancelled() && !error();
     }
 
     public boolean cancelled() {
         return cancelled;
     }
 
-    public Exception error() {
+    public boolean error() {
+        return error != null;
+    }
+
+    public Throwable getError() {
         return error;
     }
 
@@ -59,6 +64,97 @@ public class InitNode implements Runnable {
         setChildOf(parentNodes);
     }
 
+    public void dependsOn(InitNode... newDependencies) {
+        dependsOn(Arrays.asList(newDependencies));
+    }
+
+    public void await() throws InterruptedException {
+        countDownLatch.await(24, TimeUnit.HOURS);
+    }
+
+    public void cancel() {
+        if (!finished() && !error()) {
+            cancelled = true;
+        }
+    }
+
+    public void cancelTree() {
+        cancel();
+        cancelChildren();
+        unlock();
+        unlockChildren();
+    }
+
+    private void cancelChildren() {
+        for (InitNode child : children) {
+            child.cancel();
+            child.cancelChildren();
+        }
+    }
+
+    private void unlockChildren() {
+        for (InitNode child : children) {
+            child.unlock();
+            child.unlockChildren();
+        }
+    }
+
+    @Override
+    public void run() {
+        if (this.uncaughtExceptionHandler != null) {
+            Thread.currentThread().setUncaughtExceptionHandler(this.uncaughtExceptionHandler);
+        }
+        System.out.println(String.format("Run %s, on thread %s : RUNNING", this.toString(), Thread.currentThread().getName()));
+        for (InitNode dependency : parents) {
+            try {
+                System.out.println(String.format("Run %s, on thread %s :   WAITING for %s", this.toString(), Thread.currentThread().getName(), dependency));
+                dependency.countDownLatch.await();
+                if (dependency.cancelled()) {
+                    cancel();
+                }
+            } catch (InterruptedException e) {
+                throw new IllegalStateException("interrupted", e);
+            }
+        }
+
+        if (cancelled) {
+            System.out.println(String.format("Run %s, on thread %s :   CANCELLED", this.toString(), Thread.currentThread().getName()));
+            return;
+        }
+
+        runTask();
+
+        countDownLatch.countDown();
+        cancelled = false;
+        System.out.println(String.format("Run %s, on thread %s : END", this.toString(), Thread.currentThread().getName()));
+    }
+
+    @Override
+    public String toString() {
+        return "InitNode{" +
+                "task=" + task +
+                '}';
+    }
+
+    void setUncaughtExceptionHandler(Thread.UncaughtExceptionHandler uncaughtExceptionHandler) {
+        this.uncaughtExceptionHandler = uncaughtExceptionHandler;
+    }
+
+    void unlock() {
+        if (countDownLatch.getCount() == 1) {
+            countDownLatch.countDown();
+        }
+    }
+
+    protected void runTask() {
+        try {
+            this.task.run();
+        } catch (Exception e) {
+            error = e;
+            throw new TaskExecutionError(this, e);
+        }
+    }
+
     private boolean setParents(Collection<InitNode> parentNodes) {
         return parents.addAll(parentNodes);
     }
@@ -73,62 +169,6 @@ public class InitNode implements Runnable {
 
     }
 
-    public void dependsOn(InitNode... newDependencies) {
-        dependsOn(Arrays.asList(newDependencies));
-    }
-
-    @Override
-    public void run() {
-        if (this.uncaughtExceptionHandler != null) {
-            Thread.currentThread().setUncaughtExceptionHandler(this.uncaughtExceptionHandler);
-        }
-        System.out.println(String.format("%s, on thread %s : RUNNING", this.toString(), Thread.currentThread().getName()));
-        for (InitNode dependency : parents) {
-            try {
-                System.out.println(String.format("%s, on thread %s :   WAITING for %s", this.toString(), Thread.currentThread().getName(), dependency));
-                dependency.countDownLatch.await();
-            } catch (InterruptedException e) {
-                throw new IllegalStateException("interrupted", e);
-            }
-        }
-
-        if (cancelled) {
-            System.out.println(String.format("%s, on thread %s :   CANCELLED", this.toString(), Thread.currentThread().getName()));
-            return;
-        }
-
-        runTask();
-
-        countDownLatch.countDown();
-        cancelled = false;
-        System.out.println(String.format("%s, on thread %s : END", this.toString(), Thread.currentThread().getName()));
-    }
-
-    protected void runTask() {
-        try {
-            this.task.run();
-        } catch (Exception e) {
-            error = e;
-            throw new TaskExecutionError(this, e);
-        }
-    }
-
-    public void setUncaughtExceptionHandler(Thread.UncaughtExceptionHandler uncaughtExceptionHandler) {
-        this.uncaughtExceptionHandler = uncaughtExceptionHandler;
-    }
-
-    public void cancel() {
-        if (!finished() && error() == null) {
-            cancelled = true;
-        }
-    }
-
-    void unlock() {
-        if (countDownLatch.getCount() == 1) {
-            countDownLatch.countDown();
-        }
-    }
-
     private static class EmptyRunnable implements Runnable {
         @Override
         public void run() {
@@ -136,28 +176,21 @@ public class InitNode implements Runnable {
         }
     }
 
-    @Override
-    public String toString() {
-        return "InitNode{" +
-                "task=" + task +
-                '}';
-    }
-
-    public static class TaskExecutionError extends RuntimeException {
+    static class TaskExecutionError extends RuntimeException {
 
         private InitNode node;
 
-        public TaskExecutionError(InitNode node, Exception e) {
+        TaskExecutionError(InitNode node, Exception e) {
             super("Failed running node: "+ node, e);
             this.node = node;
         }
 
-        public InitNode node() {
+        InitNode node() {
             return node;
         }
     }
 
-    public static class TaskCancelledError extends TaskExecutionError {
+    static class TaskCancelledError extends TaskExecutionError {
 
         public TaskCancelledError(InitNode node, Exception e) {
             super(node, e);

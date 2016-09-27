@@ -2,7 +2,6 @@ package com.example;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.internal.verification.Times;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -13,23 +12,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 public abstract class InitLoaderTest {
 
-    protected List<InitNode> initNodes;
-    protected TestInitNode initA;
-    protected TestInitNode initB;
-    protected TestInitNode initC;
-    protected TestInitNode initD;
-    protected TestInitNode initE;
-    protected TestInitNode initF;
-    protected TestInitNode initG;
-    protected TestInitNode initH;
-    protected TestInitNode initI;
-    protected AssertNodesExecutedCallback spyLoadedCallback;
+    List<InitNode> initNodes;
+    TestInitNode initA;
+    TestInitNode initB;
+    TestInitNode initC;
+    TestInitNode initD;
+    TestInitNode initE;
+    TestInitNode initF;
+    TestInitNode initG;
+    TestInitNode initH;
+    TestInitNode initI;
+    private AssertNodesExecutedCallback spyLoadedCallback;
 
     @Before
     public void setUp() throws Exception {
@@ -65,7 +65,7 @@ public abstract class InitLoaderTest {
         // When
         new InitLoader(1).load(spyLoadedCallback, initNodes);
 
-        //Then
+        // Then
         verify(spyLoadedCallback, timeout(6000)).onTerminate();
     }
 
@@ -78,7 +78,7 @@ public abstract class InitLoaderTest {
         // When
         new InitLoader(2).load(spyLoadedCallback, initNodes);
 
-        //Then
+        // Then
         verify(spyLoadedCallback, timeout(6000)).onTerminate();
     }
 
@@ -91,7 +91,7 @@ public abstract class InitLoaderTest {
         // When
         new InitLoader(3).load(spyLoadedCallback, initNodes);
 
-        //Then
+        // Then
         verify(spyLoadedCallback, timeout(6000)).onTerminate();
     }
 
@@ -104,7 +104,7 @@ public abstract class InitLoaderTest {
         // When
         new InitLoader(5).load(spyLoadedCallback, initNodes);
 
-        //Then
+        // Then
         verify(spyLoadedCallback, timeout(6000)).onTerminate();
     }
 
@@ -117,7 +117,7 @@ public abstract class InitLoaderTest {
         // When
         new InitLoader(9).load(spyLoadedCallback, initNodes);
 
-        //Then
+        // Then
         verify(spyLoadedCallback, timeout(6000)).onTerminate();
     }
 
@@ -185,7 +185,7 @@ public abstract class InitLoaderTest {
         Collection<InitNode> resolved = new ArrayList<>();
         InitLoader.dep_resolve(initNodes, resolved);
 
-        //Then
+        // Then
         boolean atStart = true;
         InitNode previousNode = null;
         for (InitNode initNode : resolved) {
@@ -207,31 +207,45 @@ public abstract class InitLoaderTest {
 
         // Given
         setupDependencies();
-        TestInitNode initError = new TestInitNode("ERROR", new WaitTaskError(0, "ERROR"));
-        initError.dependsOn(initG);
-        initNodes.add(initError);
+        TestInitNode ErrorNode = new TestInitNode("ERROR", new WaitTaskError(100, "ERROR"));
+        initH.dependsOn(ErrorNode);
+        initNodes.add(ErrorNode);
         spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNodes));
 
         // When
         InitLoader initLoader = new InitLoader(6);
         initLoader.load(spyLoadedCallback, initNodes);
 
-        //Then
+        // Then
+        assertError(initLoader, ErrorNode);
+
+        for (InitNode initNode : initNodes) {
+            System.out.println(String.format("Result for %s: %s", initNode,
+                    initNode.success() ? "Success" :
+                            initNode.cancelled() ? "Cancelled" :
+                                    initNode.error() ? "Error: "+ initNode.getError().getMessage() :
+                                            "Not Started."));
+
+        }
+
+    }
+
+    private void assertError(InitLoader initLoader, InitNode initError) throws InterruptedException {
         verify(spyLoadedCallback, timeout(6000)).onError(eq(initError), any(Throwable.class));
 
         initLoader.await();
-        verify(spyLoadedCallback, new Times(0)).onTerminate();
 
-        assertThat(initError.error()).isNotNull();
+        verify(spyLoadedCallback, never()).onTerminate();
+
+        assertThat(initError.error()).isTrue();
         assertThat(initError.success()).isFalse();
 
         for (InitNode initNode : initNodes) {
             if (initNode != initError) {
-                assertThat(initNode.error()).isNull();
+                assertThat(initNode.error()).isFalse();
                 assertThat(initNode.success() || initNode.cancelled()).isTrue();
             }
         }
-
     }
 
     private static class AssertNodesExecutedCallback implements InitLoader.InitLoaderCallback {
@@ -241,7 +255,7 @@ public abstract class InitLoaderTest {
             this(Arrays.asList(initNodes));
         }
 
-        public AssertNodesExecutedCallback(List<InitNode> initNodes) {
+        AssertNodesExecutedCallback(List<InitNode> initNodes) {
             this.initNodes = initNodes;
         }
 
@@ -258,7 +272,7 @@ public abstract class InitLoaderTest {
 
     private static class WaitTaskError extends WaitTask {
 
-        public WaitTaskError(int millis, String name) {
+        WaitTaskError(int millis, String name) {
             super(millis, name);
         }
 
@@ -274,7 +288,7 @@ public abstract class InitLoaderTest {
         private int millis;
         private String name;
 
-        public WaitTask(int millis, String name) {
+        WaitTask(int millis, String name) {
             this.millis = millis;
             this.name = name;
         }
@@ -301,12 +315,12 @@ public abstract class InitLoaderTest {
 
         private String name;
 
-        public TestInitNode(String name, Runnable task) {
+        TestInitNode(String name, Runnable task) {
             super(task);
             this.name = name;
         }
 
-        public TestInitNode(String name) {
+        TestInitNode(String name) {
             super();
             this.name = name;
         }

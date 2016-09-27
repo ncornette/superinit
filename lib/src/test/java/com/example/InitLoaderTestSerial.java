@@ -22,6 +22,6 @@ public class InitLoaderTestSerial extends InitLoaderTest {
         initE.dependsOn(initF);
         initF.dependsOn(initG);
         initG.dependsOn(initH);
-        initG.dependsOn(initI);
+        initH.dependsOn(initI);
     }
 }
