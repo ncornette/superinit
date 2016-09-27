@@ -14,8 +14,8 @@ public class InitNode implements Runnable {
 
     private CountDownLatch countDownLatch = new CountDownLatch(1);
 
-    Set<InitNode> parents = NO_NODES;
-    Set<InitNode> children = NO_NODES;
+    Set<InitNode> dependencies = NO_NODES;
+    Set<InitNode> descendants = NO_NODES;
 
     private Runnable task;
     private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
@@ -50,18 +50,18 @@ public class InitNode implements Runnable {
         return error;
     }
 
-    public void dependsOn(Collection<InitNode> parentNodes) {
-        if (parents == NO_NODES) {
-            parents = new HashSet<>();
+    public void dependsOn(Collection<InitNode> dependencies) {
+        if (this.dependencies == NO_NODES) {
+            this.dependencies = new HashSet<>();
         }
-        for (InitNode parentNode : parentNodes) {
-            if (parentNode.parents.contains(this) || parentNode == this) {
+        for (InitNode dependency : dependencies) {
+            if (dependency.dependencies.contains(this) || dependency == this) {
                 throw new IllegalArgumentException(String.format(
-                        "Error adding dependency: %s, circular dependency detected", parentNode));
+                        "Error adding dependency: %s, circular dependency detected", dependency));
             }
         }
-        setParents(parentNodes);
-        setChildOf(parentNodes);
+        setDependencies(dependencies);
+        setDescendantOf(dependencies);
     }
 
     public void dependsOn(InitNode... newDependencies) {
@@ -80,22 +80,22 @@ public class InitNode implements Runnable {
 
     public void cancelTree() {
         cancel();
-        cancelChildren();
+        cancelDescendents();
         unlock();
-        unlockChildren();
+        unlockDescendants();
     }
 
-    private void cancelChildren() {
-        for (InitNode child : children) {
-            child.cancel();
-            child.cancelChildren();
+    private void cancelDescendents() {
+        for (InitNode descendant : descendants) {
+            descendant.cancel();
+            descendant.cancelDescendents();
         }
     }
 
-    private void unlockChildren() {
-        for (InitNode child : children) {
-            child.unlock();
-            child.unlockChildren();
+    private void unlockDescendants() {
+        for (InitNode descendant : descendants) {
+            descendant.unlock();
+            descendant.unlockDescendants();
         }
     }
 
@@ -105,7 +105,7 @@ public class InitNode implements Runnable {
             Thread.currentThread().setUncaughtExceptionHandler(this.uncaughtExceptionHandler);
         }
         System.out.println(String.format("Run %s, on thread %s : RUNNING", this.toString(), Thread.currentThread().getName()));
-        for (InitNode dependency : parents) {
+        for (InitNode dependency : dependencies) {
             try {
                 System.out.println(String.format("Run %s, on thread %s :   WAITING for %s", this.toString(), Thread.currentThread().getName(), dependency));
                 dependency.countDownLatch.await();
@@ -155,16 +155,16 @@ public class InitNode implements Runnable {
         }
     }
 
-    private boolean setParents(Collection<InitNode> parentNodes) {
-        return parents.addAll(parentNodes);
+    private boolean setDependencies(Collection<InitNode> dependencies) {
+        return this.dependencies.addAll(dependencies);
     }
 
-    private void setChildOf(Collection<InitNode> parentNodes) {
-        for (InitNode parentNode : parentNodes) {
-            if (parentNode.children == NO_NODES) {
-                parentNode.children = new HashSet<>();
+    private void setDescendantOf(Collection<InitNode> dependencies) {
+        for (InitNode dependency : dependencies) {
+            if (dependency.descendants == NO_NODES) {
+                dependency.descendants = new HashSet<>();
             }
-            parentNode.children.add(this);
+            dependency.descendants.add(this);
         }
 
     }

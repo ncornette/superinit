@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -189,7 +190,7 @@ public abstract class InitLoaderTest {
         boolean atStart = true;
         InitNode previousNode = null;
         for (InitNode initNode : resolved) {
-            if (initNode.parents.isEmpty()) {
+            if (initNode.dependencies.isEmpty()) {
                 if (!atStart) {
                     fail(String.format("Independent %s encountered after dependent Node %s\n" +
                                     "All independent Nodes should be executed first.",
@@ -217,7 +218,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        assertError(initLoader, ErrorNode);
+        verifyOnError(initLoader, ErrorNode);
 
         for (InitNode initNode : initNodes) {
             System.out.println(String.format("Result for %s: %s", initNode,
@@ -230,21 +231,32 @@ public abstract class InitLoaderTest {
 
     }
 
-    private void assertError(InitLoader initLoader, InitNode initError) throws InterruptedException {
-        verify(spyLoadedCallback, timeout(6000)).onError(eq(initError), any(Throwable.class));
+    private void verifyOnError(InitLoader initLoader, InitNode errorNode) throws InterruptedException {
+
+        verify(spyLoadedCallback, timeout(6000)).onError(eq(errorNode), any(Throwable.class));
 
         initLoader.await();
 
         verify(spyLoadedCallback, never()).onTerminate();
 
-        assertThat(initError.error()).isTrue();
-        assertThat(initError.success()).isFalse();
+        assertThat(errorNode.error()).isTrue();
+        assertThat(errorNode.success()).isFalse();
 
-        for (InitNode initNode : initNodes) {
-            if (initNode != initError) {
-                assertThat(initNode.error()).isFalse();
-                assertThat(initNode.success() || initNode.cancelled()).isTrue();
-            }
+        List<InitNode> cancelledNodes = new ArrayList<>();
+        getAllDescendants(errorNode, cancelledNodes);
+        ArrayList<InitNode> successNodes = new ArrayList<>(initNodes);
+        successNodes.removeAll(cancelledNodes);
+        successNodes.remove(errorNode);
+
+        assertThat(cancelledNodes).allMatch((Predicate<InitNode>) node -> node.cancelled());
+        assertThat(successNodes).allMatch((Predicate<InitNode>) node -> node.success());
+
+    }
+
+    void getAllDescendants(InitNode node, List<InitNode> descendants) {
+        for (InitNode descendant : node.descendants) {
+            descendants.add(descendant);
+            getAllDescendants(descendant, descendants);
         }
     }
 
@@ -336,7 +348,7 @@ public abstract class InitLoaderTest {
 
         @Override
         protected void runTask() {
-            for (InitNode dependency : parents) {
+            for (InitNode dependency : dependencies) {
                 assertThat(new NodeStartedPredicate()).accepts(dependency);
             }
 

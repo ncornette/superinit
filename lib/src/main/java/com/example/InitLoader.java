@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class InitLoader {
 
@@ -64,7 +63,7 @@ public class InitLoader {
 
     static void dep_resolve(Collection<InitNode> initNodes, Collection<InitNode> resolved) {
         for (InitNode initNode : initNodes) {
-            if (initNode.parents.isEmpty()) {
+            if (initNode.dependencies.isEmpty()) {
                 // Insert orphans first
                 resolved.add(initNode);
             }
@@ -80,7 +79,7 @@ public class InitLoader {
 
     private static void dep_resolve(InitNode initNode, Collection<InitNode> resolved, Collection<InitNode> seen) {
         seen.add(initNode);
-        for (InitNode dependency : initNode.parents) {
+        for (InitNode dependency : initNode.dependencies) {
             if (!resolved.contains(dependency)) {
                 if (seen.contains(dependency)) {
                     throw new IllegalArgumentException(String.format("Circular Dependency: %s --> %s", initNode, dependency));
