@@ -6,7 +6,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 public class InitNode implements Runnable {
 
@@ -19,8 +18,10 @@ public class InitNode implements Runnable {
 
     private Runnable task;
     private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
+
+    private boolean executed = false;
     private boolean cancelled = false;
-    private Exception error;
+    private Exception error = null;
 
     public InitNode() {
         this(null);
@@ -35,7 +36,7 @@ public class InitNode implements Runnable {
     }
 
     public boolean success() {
-        return finished() && !cancelled() && !error();
+        return executed;
     }
 
     public boolean cancelled() {
@@ -69,64 +70,60 @@ public class InitNode implements Runnable {
     }
 
     public void await() throws InterruptedException {
-        countDownLatch.await(24, TimeUnit.HOURS);
+        countDownLatch.await();
     }
 
     public void cancel() {
-        if (!finished() && !error()) {
-            cancelled = true;
+        if (finished()) {
+            return;
         }
-    }
-
-    public void cancelTree() {
-        cancel();
-        cancelDescendents();
-        unlock();
-        unlockDescendants();
-    }
-
-    private void cancelDescendents() {
+        cancelled = true;
         for (InitNode descendant : descendants) {
             descendant.cancel();
-            descendant.cancelDescendents();
         }
-    }
-
-    private void unlockDescendants() {
-        for (InitNode descendant : descendants) {
-            descendant.unlock();
-            descendant.unlockDescendants();
-        }
+        unlock();
     }
 
     @Override
     public void run() {
+        System.out.println(String.format("Run %s, on thread %s : RUNNING", this.toString(), Thread.currentThread().getName()));
+        if (success() || error()) {
+            throw new IllegalStateException(String.format("%s already executed.", this.toString()));
+        }
         if (this.uncaughtExceptionHandler != null) {
             Thread.currentThread().setUncaughtExceptionHandler(this.uncaughtExceptionHandler);
         }
-        System.out.println(String.format("Run %s, on thread %s : RUNNING", this.toString(), Thread.currentThread().getName()));
         for (InitNode dependency : dependencies) {
             try {
                 System.out.println(String.format("Run %s, on thread %s :   WAITING for %s", this.toString(), Thread.currentThread().getName(), dependency));
-                dependency.countDownLatch.await();
-                if (dependency.cancelled()) {
-                    cancel();
-                }
+                dependency.await();
             } catch (InterruptedException e) {
                 throw new IllegalStateException("interrupted", e);
             }
         }
 
-        if (cancelled) {
+        if (cancelled()) {
             System.out.println(String.format("Run %s, on thread %s :   CANCELLED", this.toString(), Thread.currentThread().getName()));
             return;
         }
 
-        runTask();
+        try {
+            onRunTask();
+            this.task.run();
+        } catch (Exception e) {
+            error = e;
+            throw new TaskExecutionError(this, e);
+        }
 
-        countDownLatch.countDown();
+        error = null;
+        executed = true;
         cancelled = false;
+        countDownLatch.countDown();
         System.out.println(String.format("Run %s, on thread %s : END", this.toString(), Thread.currentThread().getName()));
+    }
+
+    protected void onRunTask() {
+
     }
 
     @Override
@@ -143,15 +140,6 @@ public class InitNode implements Runnable {
     void unlock() {
         if (countDownLatch.getCount() == 1) {
             countDownLatch.countDown();
-        }
-    }
-
-    protected void runTask() {
-        try {
-            this.task.run();
-        } catch (Exception e) {
-            error = e;
-            throw new TaskExecutionError(this, e);
         }
     }
 
@@ -190,10 +178,4 @@ public class InitNode implements Runnable {
         }
     }
 
-    static class TaskCancelledError extends TaskExecutionError {
-
-        public TaskCancelledError(InitNode node, Exception e) {
-            super(node, e);
-        }
-    }
 }

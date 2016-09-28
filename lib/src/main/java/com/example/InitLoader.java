@@ -38,10 +38,6 @@ public class InitLoader {
         load(loaderCallback, Arrays.asList(initNodes));
     }
 
-    public void load(InitNode... initNodes) {
-        this.load(null, initNodes);
-    }
-
     private void executeNodes(InitLoaderCallback loaderCallback, Collection<InitNode> nodes) {
         for (InitNode node : nodes) {
             node.setUncaughtExceptionHandler(new NodeUncaughtExceptionHandler(this, loaderCallback));
@@ -50,14 +46,10 @@ public class InitLoader {
         }
     }
 
-    private void cancel() {
+    public void cancel() {
         executorService.shutdown();
         for (InitNode initNode : resolved) {
             initNode.cancel();
-        }
-        for (InitNode initNode : resolved) {
-            System.out.println("unlock: " + initNode);
-            initNode.unlock();
         }
     }
 
@@ -100,8 +92,11 @@ public class InitLoader {
 
 
     public interface InitLoaderCallback {
-        void onTerminate();
-        void onError(InitNode initNode, Throwable t);
+
+        void onFinished();
+
+        void onError(InitNode node, Throwable t);
+
     }
 
     private static class NodeUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
@@ -110,19 +105,28 @@ public class InitLoader {
 
         public NodeUncaughtExceptionHandler(InitLoader initLoader, InitLoaderCallback loaderCallback) {
             this.initLoader = initLoader;
-            this.loaderCallback = loaderCallback;
+            this.loaderCallback = loaderCallback != null ? loaderCallback : new InitLoaderCallback() {
+                @Override public void onFinished() {}
+                @Override public void onError(InitNode node, Throwable t) {
+                    t.printStackTrace();
+                }
+            };
         }
 
         @Override
         public void uncaughtException(Thread thread, Throwable throwable) {
-            if (throwable instanceof InitNode.TaskExecutionError) {
-                InitNode.TaskExecutionError taskExecutionError = (InitNode.TaskExecutionError) throwable;
-                loaderCallback.onError(taskExecutionError.node(), throwable);
-                taskExecutionError.node().cancelTree();
-            } else {
-                // Cancel all tasks from initloader
-                loaderCallback.onError(null, throwable);
-                initLoader.cancel();
+            try {
+                if (throwable instanceof InitNode.TaskExecutionError) {
+                    InitNode.TaskExecutionError taskExecutionError = (InitNode.TaskExecutionError) throwable;
+                    loaderCallback.onError(taskExecutionError.node(), throwable);
+                    taskExecutionError.node().cancel();
+                } else {
+                    // Cancel all tasks from initloader
+                    loaderCallback.onError(null, throwable);
+                    initLoader.cancel();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
     }
@@ -136,7 +140,9 @@ public class InitLoader {
 
         @Override
         public void run() {
-            loaderCallback.onTerminate();
+            if (loaderCallback != null) {
+                loaderCallback.onFinished();
+            }
         }
     }
 }

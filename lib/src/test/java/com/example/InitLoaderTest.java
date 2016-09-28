@@ -1,5 +1,6 @@
 package com.example;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -51,11 +52,82 @@ public abstract class InitLoaderTest {
         spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNodes));
     }
 
+    @After
+    public void tearDown() throws Exception {
+        for (InitNode initNode : initNodes) {
+            System.out.println(String.format("Result for %s: %s", initNode,
+                    initNode.success() ? "Success" :
+                            initNode.cancelled() ? "Cancelled" :
+                                    initNode.error() ? "Error: "+ initNode.getError().getMessage() :
+                                            "Not Executed."));
+
+        }
+    }
+
     protected int taskDelay() {
         return 50;
     }
 
     protected abstract void setupDependencies();
+
+    @Test
+    public void test_InitNode_Load_Twice() throws Exception {
+
+        // Given
+        InitLoader initLoader = new InitLoader(2);
+        InitNode node = new InitNode();
+        initLoader.load(null, node);
+
+        try {
+
+            // When
+            initLoader.load(null, node);
+            fail("Expected failure when trying to load twice");
+        } catch (IllegalStateException e) {
+
+            // Then
+            assertThat(e.getMessage()).isNotEmpty();
+        }
+    }
+
+
+    @Test
+    public void test_InitNode_Run_Twice() throws Exception {
+
+        // When
+        InitNode node = new InitNode();
+        node.run();
+
+        try {
+
+            // When
+            node.run();
+            fail("Expected failure when trying to run node twice");
+        } catch (IllegalStateException e) {
+
+            // Then
+            assertThat(e.getMessage()).isNotEmpty();
+        }
+    }
+
+
+    @Test
+    public void test_InitNode_Cancel() throws Exception {
+
+        // Given
+        setupDependencies();
+
+        // When
+        InitLoader initLoader = new InitLoader(1);
+        initLoader.load(spyLoadedCallback, initNodes);
+        initLoader.cancel();
+        initLoader.await();
+
+        // Then
+        verify(spyLoadedCallback, never()).onFinished();
+        verify(spyLoadedCallback, never()).onError(any(), any());
+    }
+
 
     @Test
     public void test_InitLoader_1Thread() throws Exception {
@@ -67,7 +139,7 @@ public abstract class InitLoaderTest {
         new InitLoader(1).load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(6000)).onTerminate();
+        verify(spyLoadedCallback, timeout(6000)).onFinished();
     }
 
     @Test
@@ -80,7 +152,7 @@ public abstract class InitLoaderTest {
         new InitLoader(2).load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(6000)).onTerminate();
+        verify(spyLoadedCallback, timeout(6000)).onFinished();
     }
 
     @Test
@@ -93,7 +165,7 @@ public abstract class InitLoaderTest {
         new InitLoader(3).load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(6000)).onTerminate();
+        verify(spyLoadedCallback, timeout(6000)).onFinished();
     }
 
     @Test
@@ -106,7 +178,7 @@ public abstract class InitLoaderTest {
         new InitLoader(5).load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(6000)).onTerminate();
+        verify(spyLoadedCallback, timeout(6000)).onFinished();
     }
 
     @Test
@@ -119,7 +191,7 @@ public abstract class InitLoaderTest {
         new InitLoader(9).load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(6000)).onTerminate();
+        verify(spyLoadedCallback, timeout(6000)).onFinished();
     }
 
     @Test
@@ -218,32 +290,24 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verifyOnError(initLoader, ErrorNode);
-
-        for (InitNode initNode : initNodes) {
-            System.out.println(String.format("Result for %s: %s", initNode,
-                    initNode.success() ? "Success" :
-                            initNode.cancelled() ? "Cancelled" :
-                                    initNode.error() ? "Error: "+ initNode.getError().getMessage() :
-                                            "Not Started."));
-
-        }
+        assertOnErrorDescendantsCancelled(initLoader, ErrorNode);
 
     }
 
-    private void verifyOnError(InitLoader initLoader, InitNode errorNode) throws InterruptedException {
+    private void assertOnErrorDescendantsCancelled(InitLoader initLoader, InitNode errorNode) throws InterruptedException {
 
         verify(spyLoadedCallback, timeout(6000)).onError(eq(errorNode), any(Throwable.class));
 
         initLoader.await();
 
-        verify(spyLoadedCallback, never()).onTerminate();
+        verify(spyLoadedCallback, never()).onFinished();
 
         assertThat(errorNode.error()).isTrue();
         assertThat(errorNode.success()).isFalse();
 
         List<InitNode> cancelledNodes = new ArrayList<>();
         getAllDescendants(errorNode, cancelledNodes);
+
         ArrayList<InitNode> successNodes = new ArrayList<>(initNodes);
         successNodes.removeAll(cancelledNodes);
         successNodes.remove(errorNode);
@@ -272,12 +336,12 @@ public abstract class InitLoaderTest {
         }
 
         @Override
-        public void onTerminate() {
-            assertThat(new NodeStartedPredicate()).acceptsAll(initNodes);
+        public void onFinished() {
+            assertThat(new NodeExecutedPredicate()).acceptsAll(initNodes);
         }
 
         @Override
-        public void onError(InitNode initNode, Throwable t) {
+        public void onError(InitNode node, Throwable t) {
             t.printStackTrace();
         }
     }
@@ -338,21 +402,9 @@ public abstract class InitLoaderTest {
         }
 
         @Override
-        public void run() {
-            if (cancelled()) {
-                return;
-            }
-            assertThat(finished()).overridingErrorMessage(this + " already executed").isFalse();
-            super.run();
-        }
-
-        @Override
-        protected void runTask() {
-            for (InitNode dependency : dependencies) {
-                assertThat(new NodeStartedPredicate()).accepts(dependency);
-            }
-
-            super.runTask();
+        protected void onRunTask() {
+            assertThat(new NodeExecutedPredicate()).acceptsAll(dependencies);
+            super.onRunTask();
         }
 
         @Override
