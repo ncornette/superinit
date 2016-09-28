@@ -1,5 +1,7 @@
 package com.example;
 
+import com.example.InitNode.TaskExecutionError;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -14,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
@@ -296,13 +299,14 @@ public abstract class InitLoaderTest {
 
     private void assertOnErrorDescendantsCancelled(InitLoader initLoader, InitNode errorNode) throws InterruptedException {
 
-        verify(spyLoadedCallback, timeout(6000)).onError(eq(errorNode), any(Throwable.class));
+        verify(spyLoadedCallback, timeout(6000)).onError(eq(errorNode), isA(TaskExecutionError.class));
 
         initLoader.await();
 
         verify(spyLoadedCallback, never()).onFinished();
 
         assertThat(errorNode.error()).isTrue();
+        assertThat(errorNode.cancelled()).isTrue();
         assertThat(errorNode.success()).isFalse();
 
         List<InitNode> cancelledNodes = new ArrayList<>();
@@ -312,7 +316,10 @@ public abstract class InitLoaderTest {
         successNodes.removeAll(cancelledNodes);
         successNodes.remove(errorNode);
 
+        assertThat(cancelledNodes).allMatch((Predicate<InitNode>) node -> node.finished());
         assertThat(cancelledNodes).allMatch((Predicate<InitNode>) node -> node.cancelled());
+
+        assertThat(successNodes).allMatch((Predicate<InitNode>) node -> node.finished());
         assertThat(successNodes).allMatch((Predicate<InitNode>) node -> node.success());
 
     }
