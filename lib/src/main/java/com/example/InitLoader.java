@@ -42,7 +42,6 @@ public class InitLoader {
         for (InitNode node : nodes) {
             node.setUncaughtExceptionHandler(new NodeUncaughtExceptionHandler(this, loaderCallback));
             executorService.execute(node);
-            System.out.printf("Load %s%n", node);
         }
     }
 

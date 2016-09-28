@@ -86,7 +86,6 @@ public class InitNode implements Runnable {
 
     @Override
     public void run() {
-        System.out.println(String.format("Run %s, on thread %s : RUNNING", this.toString(), Thread.currentThread().getName()));
         if (success() || error()) {
             throw new IllegalStateException(String.format("%s already executed.", this.toString()));
         }
@@ -95,7 +94,6 @@ public class InitNode implements Runnable {
         }
         for (InitNode dependency : dependencies) {
             try {
-                System.out.println(String.format("Run %s, on thread %s :   WAITING for %s", this.toString(), Thread.currentThread().getName(), dependency));
                 dependency.await();
             } catch (InterruptedException e) {
                 throw new IllegalStateException("interrupted", e);
@@ -103,7 +101,6 @@ public class InitNode implements Runnable {
         }
 
         if (cancelled()) {
-            System.out.println(String.format("Run %s, on thread %s :   CANCELLED", this.toString(), Thread.currentThread().getName()));
             return;
         }
 
@@ -119,7 +116,6 @@ public class InitNode implements Runnable {
         executed = true;
         cancelled = false;
         countDownLatch.countDown();
-        System.out.println(String.format("Run %s, on thread %s : END", this.toString(), Thread.currentThread().getName()));
     }
 
     protected void onRunTask() {
