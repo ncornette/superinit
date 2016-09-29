@@ -309,7 +309,7 @@ public abstract class InitLoaderTest {
 
     private void assertOnErrorDescendantsCancelled(InitLoader initLoader, InitNode errorNode) throws InterruptedException {
 
-        verify(spyLoadedCallback, timeout(6000)).onError(eq(errorNode), isA(TaskExecutionError.class));
+        verify(spyLoadedCallback, timeout(6000)).onError(eq(errorNode), isA(RuntimeException.class));
 
         initLoader.await();
 

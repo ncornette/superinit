@@ -117,7 +117,7 @@ public class InitLoader {
             try {
                 if (throwable instanceof InitNode.TaskExecutionError) {
                     InitNode.TaskExecutionError taskExecutionError = (InitNode.TaskExecutionError) throwable;
-                    loaderCallback.onError(taskExecutionError.node(), throwable);
+                    loaderCallback.onError(taskExecutionError.node(), taskExecutionError.getCause());
                     taskExecutionError.node().cancel();
                 } else {
                     // Cancel all tasks from initloader
