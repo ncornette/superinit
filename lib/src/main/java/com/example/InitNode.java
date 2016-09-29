@@ -9,12 +9,11 @@ import java.util.concurrent.CountDownLatch;
 
 public class InitNode implements Runnable {
 
-    private static final Set<InitNode> NO_NODES = Collections.emptySet();
-
+    private static final Set<InitNode> EMPTY_SET = Collections.emptySet();
     private CountDownLatch countDownLatch = new CountDownLatch(1);
 
-    Set<InitNode> dependencies = NO_NODES;
-    Set<InitNode> descendants = NO_NODES;
+    Set<InitNode> dependencies = EMPTY_SET;
+    Set<InitNode> descendants = EMPTY_SET;
 
     private Runnable task;
     private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
@@ -52,7 +51,7 @@ public class InitNode implements Runnable {
     }
 
     public void dependsOn(Collection<InitNode> dependencies) {
-        if (this.dependencies == NO_NODES) {
+        if (this.dependencies == EMPTY_SET) {
             this.dependencies = new HashSet<>();
         }
         for (InitNode dependency : dependencies) {
@@ -145,7 +144,7 @@ public class InitNode implements Runnable {
 
     private void setDescendantOf(Collection<InitNode> dependencies) {
         for (InitNode dependency : dependencies) {
-            if (dependency.descendants == NO_NODES) {
+            if (dependency.descendants == EMPTY_SET) {
                 dependency.descendants = new HashSet<>();
             }
             dependency.descendants.add(this);
@@ -154,10 +153,7 @@ public class InitNode implements Runnable {
     }
 
     private static class EmptyRunnable implements Runnable {
-        @Override
-        public void run() {
-
-        }
+        @Override public void run() {}
     }
 
     static class TaskExecutionError extends RuntimeException {
