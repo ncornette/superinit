@@ -104,8 +104,7 @@ public class InitNode implements Runnable {
         }
 
         try {
-            onRunTask();
-            this.task.run();
+            runTask();
         } catch (Exception e) {
             error = e;
             throw new TaskExecutionError(this, e);
@@ -117,8 +116,8 @@ public class InitNode implements Runnable {
         countDownLatch.countDown();
     }
 
-    protected void onRunTask() {
-
+    protected void runTask() {
+        this.task.run();
     }
 
     @Override

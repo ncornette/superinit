@@ -1,11 +1,40 @@
 apply plugin: 'java'
+apply plugin: 'maven-publish'
+apply plugin: 'jacoco'
+
+task sourceJar(type: Jar) {
+    from sourceSets.main.allJava
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            groupId "${POM_GROUPID}"
+            artifactId "${POM_ARTIFACTID}"
+            version "${POM_VERSION}"
+
+            artifact sourceJar {
+                classifier "sources"
+            }
+        }
+    }
+}
+
+jacocoTestReport {
+    reports {
+        xml.enabled true
+        html.enabled true
+    }
+}
 
 dependencies {
     compile fileTree(include: ['*.jar'], dir: 'libs')
-    compile 'junit:junit:4.12'
+    testCompile 'junit:junit:4.12'
     testCompile 'org.assertj:assertj-core:3.5.2'
     //compile 'com.android.support:support-annotations:24.2.1'
-    compile 'org.mockito:mockito-core:2.1.0-RC.1'
+    testCompile 'org.mockito:mockito-core:2.1.0-RC.1'
 }
 
 sourceCompatibility = "1.8"

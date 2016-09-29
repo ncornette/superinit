@@ -34,7 +34,7 @@ public abstract class InitLoaderTest {
     TestInitNode initG;
     TestInitNode initH;
     TestInitNode initI;
-    private AssertNodesExecutedCallback spyLoadedCallback;
+    private InitLoader.InitLoaderCallback spyLoadedCallback;
 
     @Before
     public void setUp() throws Exception {
@@ -286,7 +286,17 @@ public abstract class InitLoaderTest {
         TestInitNode ErrorNode = new TestInitNode("ERROR", new WaitTaskError(100, "ERROR"));
         initH.dependsOn(ErrorNode);
         initNodes.add(ErrorNode);
-        spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNodes));
+        spyLoadedCallback = spy(new InitLoader.InitLoaderCallback() {
+            @Override
+            public void onFinished() {
+
+            }
+
+            @Override
+            public void onError(InitNode node, Throwable t) {
+
+            }
+        });
 
         // When
         InitLoader initLoader = new InitLoader(6);
@@ -409,9 +419,9 @@ public abstract class InitLoaderTest {
         }
 
         @Override
-        protected void onRunTask() {
+        protected void runTask() {
             assertThat(new NodeExecutedPredicate()).acceptsAll(dependencies);
-            super.onRunTask();
+            super.runTask();
         }
 
         @Override
