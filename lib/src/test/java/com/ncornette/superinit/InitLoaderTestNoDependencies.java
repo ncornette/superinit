@@ -1,4 +1,4 @@
-package com.example;
+package com.ncornette.superinit;
 
 public class InitLoaderTestNoDependencies extends InitLoaderTest {
     @Override

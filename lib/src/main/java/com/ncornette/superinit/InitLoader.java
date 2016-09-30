@@ -1,4 +1,4 @@
-package com.example;
+package com.ncornette.superinit;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,7 +10,7 @@ import java.util.concurrent.Executors;
 public class InitLoader {
 
     private final ExecutorService executorService;
-    private Collection<InitNode> resolved;
+    Collection<InitNode> resolved;
 
     public InitLoader(int nThreads) {
         executorService = Executors.newFixedThreadPool(nThreads);

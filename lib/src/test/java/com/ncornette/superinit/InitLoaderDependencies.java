@@ -1,4 +1,4 @@
-package com.example;
+package com.ncornette.superinit;
 
 public class InitLoaderDependencies extends InitLoaderTest {
 
@@ -7,18 +7,18 @@ public class InitLoaderDependencies extends InitLoaderTest {
         // +--- C
         // |    +--- D
         // |    \--- B
-        // |         +--- A
-        // |         \--- F
-        // +--- E
-        // +--- G
-        // +--- H
-        //      \--- I
+        // |         +--- F
+        // |         \--- A
+        // +--- E         |
+        // +--- G         |
+        // +--- H         |
+        //      \---------+--- I
 
         initA.dependsOn(initB);
         initB.dependsOn(initC);
         initD.dependsOn(initC);
         initF.dependsOn(initB);
-        initI.dependsOn(initH);
+        initI.dependsOn(initH, initA);
 
     }
 }
