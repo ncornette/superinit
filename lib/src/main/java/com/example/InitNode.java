@@ -50,7 +50,7 @@ public class InitNode implements Runnable {
         return error;
     }
 
-    public void dependsOn(Collection<InitNode> dependencies) {
+    public InitNode dependsOn(Collection<InitNode> dependencies) {
         if (this.dependencies == EMPTY_SET) {
             this.dependencies = new HashSet<>();
         }
@@ -62,10 +62,11 @@ public class InitNode implements Runnable {
         }
         setDependencies(dependencies);
         setDescendantOf(dependencies);
+        return this;
     }
 
-    public void dependsOn(InitNode... newDependencies) {
-        dependsOn(Arrays.asList(newDependencies));
+    public InitNode dependsOn(InitNode... newDependencies) {
+        return dependsOn(Arrays.asList(newDependencies));
     }
 
     public void await() throws InterruptedException {
