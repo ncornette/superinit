@@ -24,7 +24,7 @@ import static org.mockito.Mockito.verify;
 
 public abstract class InitLoaderTest {
 
-    List<InitNode> initNodes;
+    List<TestInitNode> initNodes;
     TestInitNode initA;
     TestInitNode initB;
     TestInitNode initC;

@@ -16,7 +16,7 @@ public class InitLoader {
         executorService = Executors.newFixedThreadPool(nThreads);
     }
 
-    public void load(InitLoaderCallback loaderCallback, Collection<InitNode> initNodes) {
+    public void load(InitLoaderCallback loaderCallback, Collection<? extends InitNode> initNodes) {
         if (resolved != null) {
             throw new IllegalStateException("Load() method already called");
         }
@@ -52,7 +52,7 @@ public class InitLoader {
         }
     }
 
-    static void dep_resolve(Collection<InitNode> initNodes, Collection<InitNode> resolved) {
+    static void dep_resolve(Collection<? extends InitNode> initNodes, Collection<InitNode> resolved) {
         for (InitNode initNode : initNodes) {
             if (initNode.dependencies.isEmpty()) {
                 // Insert orphans first
