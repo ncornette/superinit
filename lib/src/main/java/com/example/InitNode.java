@@ -108,7 +108,7 @@ public class InitNode implements Runnable {
             runTask();
         } catch (Exception e) {
             error = e;
-            throw new TaskExecutionError(this, e);
+            throw new NodeExecutionError(this, e);
         }
 
         error = null;
@@ -156,16 +156,16 @@ public class InitNode implements Runnable {
         @Override public void run() {}
     }
 
-    static class TaskExecutionError extends RuntimeException {
+    public static class NodeExecutionError extends RuntimeException {
 
         private InitNode node;
 
-        TaskExecutionError(InitNode node, Exception e) {
-            super("Failed running node: "+ node, e);
+        NodeExecutionError(InitNode node, Exception e) {
+            super("Failed running node: " + node, e);
             this.node = node;
         }
 
-        InitNode node() {
+        public InitNode node() {
             return node;
         }
     }

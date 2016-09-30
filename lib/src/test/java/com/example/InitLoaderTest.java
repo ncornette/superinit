@@ -1,7 +1,5 @@
 package com.example;
 
-import com.example.InitNode.TaskExecutionError;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,7 +13,6 @@ import java.util.function.Predicate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -128,7 +125,7 @@ public abstract class InitLoaderTest {
 
         // Then
         verify(spyLoadedCallback, never()).onFinished();
-        verify(spyLoadedCallback, never()).onError(any(), any());
+        verify(spyLoadedCallback, never()).onError(any());
     }
 
 
@@ -293,7 +290,7 @@ public abstract class InitLoaderTest {
             }
 
             @Override
-            public void onError(InitNode node, Throwable t) {
+            public void onError(Throwable t) {
 
             }
         });
@@ -309,7 +306,7 @@ public abstract class InitLoaderTest {
 
     private void assertOnErrorDescendantsCancelled(InitLoader initLoader, InitNode errorNode) throws InterruptedException {
 
-        verify(spyLoadedCallback, timeout(6000)).onError(eq(errorNode), isA(RuntimeException.class));
+        verify(spyLoadedCallback, timeout(6000)).onError(isA(RuntimeException.class));
 
         initLoader.await();
 
@@ -342,13 +339,13 @@ public abstract class InitLoaderTest {
     }
 
     private static class AssertNodesExecutedCallback implements InitLoader.InitLoaderCallback {
-        private final Collection<InitNode> initNodes;
+        private final List<? extends InitNode> initNodes;
 
         public AssertNodesExecutedCallback(InitNode... initNodes) {
             this(Arrays.asList(initNodes));
         }
 
-        AssertNodesExecutedCallback(List<InitNode> initNodes) {
+        AssertNodesExecutedCallback(List<? extends InitNode> initNodes) {
             this.initNodes = initNodes;
         }
 
@@ -358,7 +355,7 @@ public abstract class InitLoaderTest {
         }
 
         @Override
-        public void onError(InitNode node, Throwable t) {
+        public void onError(Throwable t) {
             t.printStackTrace();
         }
     }
