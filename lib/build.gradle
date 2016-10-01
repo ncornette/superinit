@@ -38,7 +38,7 @@ bintray {
         repo = 'maven'
         name = "${POM_ARTIFACTID}"
         licenses = ['Apache-2.0']
-        vcsUrl = 'https://github.com/ncornette/OkCacheControl.git'
+        vcsUrl = 'https://github.com/ncornette/superinit.git'
         version {
             name= "${POM_VERSION}"
         }
