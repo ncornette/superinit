@@ -41,7 +41,7 @@ Then use `InitLoader.load()` to execute all nodes in order based on dependencies
 
 ```
 
-## How it works
+## Features
 A `ThreadpoolExecutor` with a fixed number of Threads will excute the tasks. Even with One Thread, execution order 
 is guaranteed to be respected.
 
@@ -51,6 +51,8 @@ Circular dependencies are prevented as early as possible, and will throw `Illega
  - When calling `Initloader.load()` for indirect circular dependencies.
 
 Nodes use `CountDownLatch` to wait for execution of their dependencies and to notify their execution is finished.
+
+
 
 ## Reference
 
