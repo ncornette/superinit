@@ -59,6 +59,7 @@ public abstract class InitLoaderTest {
             return;
         }
 
+        initLoader.await();
         for (InitNode initNode : initLoader.resolved) {
             System.out.println(String.format("Result for %s: %s", initNode,
                     initNode.success() ? "Success" :
@@ -246,6 +247,7 @@ public abstract class InitLoaderTest {
             // Then
             System.out.println(e.getMessage());
             assertThat(e.getMessage()).isNotEmpty();
+            initLoader.cancel();
         }
     }
 
@@ -327,7 +329,7 @@ public abstract class InitLoaderTest {
 
     private void assertOnErrorDescendantsCancelled(InitLoader initLoader, InitNode errorNode) throws InterruptedException {
 
-        verify(spyLoadedCallback, timeout(6000)).onError(any(RuntimeException.class));
+        verify(spyLoadedCallback, timeout(6000)).onError(any(InitNode.class), any(InitNode.NodeExecutionError.class));
 
         initLoader.await();
 
@@ -362,7 +364,7 @@ public abstract class InitLoaderTest {
         }
     }
 
-    private static class AssertNodesExecutedCallback implements InitLoader.InitLoaderCallback {
+    static class AssertNodesExecutedCallback implements InitLoader.InitLoaderCallback {
         private final List<? extends InitNode> initNodes;
 
         public AssertNodesExecutedCallback(InitNode... initNodes) {

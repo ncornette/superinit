@@ -4,7 +4,7 @@ import java.util.Collections;
 
 public class InitLoaderDependenciesNoDelayRepeat extends InitLoaderDependencies {
 
-    public static final int REPEAT_COUNT = 50;
+    public static final int REPEAT_COUNT = 20;
 
     @Override
     public void setUp() throws Exception {

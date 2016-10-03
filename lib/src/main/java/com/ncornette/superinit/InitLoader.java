@@ -95,6 +95,10 @@ public class InitLoader {
         }
     }
 
+    public void interrupt() {
+        executorService.shutdownNow();
+    }
+
 
     public interface InitLoaderCallback {
 
@@ -112,15 +116,7 @@ public class InitLoader {
 
         public NodeUncaughtExceptionHandler(InitLoader initLoader, InitLoaderCallback loaderCallback) {
             this.initLoader = initLoader;
-            this.loaderCallback = loaderCallback != null ? loaderCallback : new InitLoaderCallback() {
-                @Override public void onFinished() {}
-                @Override public void onError(InitNode node, NodeExecutionError t) {
-                    onError(t);
-                }
-                @Override public void onError(Throwable t) {
-                    t.printStackTrace();
-                }
-            };
+            this.loaderCallback = loaderCallback;
         }
 
         @Override
@@ -128,11 +124,15 @@ public class InitLoader {
             try {
                 if (throwable instanceof NodeExecutionError) {
                     NodeExecutionError nodeExecutionError = (NodeExecutionError) throwable;
-                    loaderCallback.onError(nodeExecutionError);
+                    if (loaderCallback != null) {
+                        loaderCallback.onError(nodeExecutionError.node(), nodeExecutionError);
+                    }
                     nodeExecutionError.node().cancel();
                 } else {
                     // Cancel all tasks from initloader
-                    loaderCallback.onError(throwable);
+                    if (loaderCallback != null) {
+                        loaderCallback.onError(throwable);
+                    }
                     initLoader.cancel();
                 }
             } catch (Exception e) {

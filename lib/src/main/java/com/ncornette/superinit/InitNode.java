@@ -96,7 +96,8 @@ public class InitNode implements Runnable {
             try {
                 dependency.await();
             } catch (InterruptedException e) {
-                throw new IllegalStateException("interrupted", e);
+                error = e;
+                throw new NodeExecutionError(this, e);
             }
         }
 
