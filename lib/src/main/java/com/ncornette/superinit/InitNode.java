@@ -124,7 +124,7 @@ public class InitNode implements Runnable {
     @Override
     public String toString() {
         return "InitNode{" +
-                "task=" + task +
+                "" + task +
                 '}';
     }
 
@@ -169,5 +169,7 @@ public class InitNode implements Runnable {
             return node;
         }
     }
+
+
 
 }

@@ -36,14 +36,14 @@ public abstract class InitLoaderTest {
     @Before
     public void setUp() throws Exception {
 
-        initA = new TestInitNode("A", new WaitTask(taskDelay(), "A"));
-        initB = new TestInitNode("B", new WaitTask(taskDelay(), "B"));
-        initD = new TestInitNode("D", new WaitTask(taskDelay(), "D"));
-        initC = new TestInitNode("C", new WaitTask(taskDelay(), "C"));
-        initE = new TestInitNode("E", new WaitTask(taskDelay(), "E"));
-        initF = new TestInitNode("F", new WaitTask(taskDelay(), "F"));
-        initG = new TestInitNode("G", new WaitTask(taskDelay(), "G"));
-        initH = new TestInitNode("H", new WaitTask(taskDelay(), "H"));
+        initA = new TestInitNode(new WaitTask("A", taskDelay()));
+        initB = new TestInitNode(new WaitTask("B", taskDelay()));
+        initD = new TestInitNode(new WaitTask("D", taskDelay()));
+        initC = new TestInitNode(new WaitTask("C", taskDelay()));
+        initE = new TestInitNode(new WaitTask("E", taskDelay()));
+        initF = new TestInitNode(new WaitTask("F", taskDelay()));
+        initG = new TestInitNode(new WaitTask("G", taskDelay()));
+        initH = new TestInitNode(new WaitTask("H", taskDelay()));
         initI = new TestInitNode("I");
 
         initNodes = new ArrayList<>();
@@ -124,6 +124,11 @@ public abstract class InitLoaderTest {
 
         // When
         initLoader = new InitLoader(1);
+        // Need at least one delayed task.
+        TestInitNode wait = new TestInitNode(new WaitTask("Wait", 20));
+        initNodes.get(0).dependsOn(wait);
+        initNodes.add(wait);
+
         initLoader.load(spyLoadedCallback, initNodes);
         initLoader.cancel();
         initLoader.await();
@@ -291,12 +296,17 @@ public abstract class InitLoaderTest {
 
         // Given
         setupDependencies();
-        TestInitNode ErrorNode = new TestInitNode("ERROR", new WaitTaskError(100, "ERROR"));
+        TestInitNode ErrorNode = new TestInitNode(new WaitTaskError(100, "ERROR"));
         initA.dependsOn(ErrorNode);
         initNodes.add(ErrorNode);
         spyLoadedCallback = spy(new InitLoader.InitLoaderCallback() {
             @Override
             public void onFinished() {
+
+            }
+
+            @Override
+            public void onError(InitNode node, InitNode.NodeExecutionError t) {
 
             }
 
@@ -371,6 +381,11 @@ public abstract class InitLoaderTest {
         }
 
         @Override
+        public void onError(InitNode node, InitNode.NodeExecutionError t) {
+            onError(null, t);
+        }
+
+        @Override
         public void onError(Throwable t) {
             t.printStackTrace();
         }
@@ -379,7 +394,7 @@ public abstract class InitLoaderTest {
     private static class WaitTaskError extends WaitTask {
 
         WaitTaskError(int millis, String name) {
-            super(millis, name);
+            super(name, millis);
         }
 
         @Override
@@ -390,11 +405,12 @@ public abstract class InitLoaderTest {
 
     }
 
-    private static class WaitTask implements Runnable {
-        private int millis;
-        private String name;
+    static class WaitTask implements Runnable {
 
-        WaitTask(int millis, String name) {
+        private String name;
+        private int millis;
+
+        WaitTask(String name, int millis) {
             this.millis = millis;
             this.name = name;
         }
@@ -411,7 +427,8 @@ public abstract class InitLoaderTest {
         @Override
         public String toString() {
             return "WaitTask{" +
-                    "name='" + name + '\'' +
+                    "'" + name + '\'' +
+                    ", " + millis +
                     '}';
         }
     }
@@ -421,10 +438,16 @@ public abstract class InitLoaderTest {
 
         private String name;
 
+        TestInitNode(WaitTask task) {
+            super(task);
+            this.name = task.name;
+        }
+
         TestInitNode(String name, Runnable task) {
             super(task);
             this.name = name;
         }
+
 
         TestInitNode(String name) {
             super();
@@ -433,6 +456,7 @@ public abstract class InitLoaderTest {
 
         @Override
         protected void runTask() {
+            //System.out.printf("%s running on Thread: %s%n", this, Thread.currentThread());
             for (InitNode initNode : dependencies) {
                 assertThat(initNode.finished()).isTrue();
             }
@@ -440,11 +464,5 @@ public abstract class InitLoaderTest {
             super.runTask();
         }
 
-        @Override
-        public String toString() {
-            return "TestInitNode{" +
-                    "name='" + name + '\'' +
-                    '}';
-        }
     }
 }

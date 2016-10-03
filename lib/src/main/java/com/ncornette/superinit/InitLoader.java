@@ -1,19 +1,29 @@
 package com.ncornette.superinit;
 
+import com.ncornette.superinit.InitNode.NodeExecutionError;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class InitLoader {
 
     private final ExecutorService executorService;
     Collection<InitNode> resolved;
 
+    public InitLoader(ExecutorService executorService) {
+        this.executorService = executorService;
+    }
+
     public InitLoader(int nThreads) {
-        executorService = Executors.newFixedThreadPool(nThreads);
+        this(Executors.newFixedThreadPool(nThreads));
     }
 
     public void load(InitLoaderCallback loaderCallback, Collection<? extends InitNode> initNodes) {
@@ -94,6 +104,8 @@ public class InitLoader {
 
         void onFinished();
 
+        void onError(InitNode node, NodeExecutionError t);
+
         void onError(Throwable t);
 
     }
@@ -106,6 +118,9 @@ public class InitLoader {
             this.initLoader = initLoader;
             this.loaderCallback = loaderCallback != null ? loaderCallback : new InitLoaderCallback() {
                 @Override public void onFinished() {}
+                @Override public void onError(InitNode node, NodeExecutionError t) {
+                    onError(t);
+                }
                 @Override public void onError(Throwable t) {
                     t.printStackTrace();
                 }
@@ -115,8 +130,8 @@ public class InitLoader {
         @Override
         public void uncaughtException(Thread thread, Throwable throwable) {
             try {
-                if (throwable instanceof InitNode.NodeExecutionError) {
-                    InitNode.NodeExecutionError nodeExecutionError = (InitNode.NodeExecutionError) throwable;
+                if (throwable instanceof NodeExecutionError) {
+                    NodeExecutionError nodeExecutionError = (NodeExecutionError) throwable;
                     loaderCallback.onError(nodeExecutionError);
                     nodeExecutionError.node().cancel();
                 } else {
@@ -142,6 +157,11 @@ public class InitLoader {
             if (loaderCallback != null) {
                 loaderCallback.onFinished();
             }
+        }
+
+        @Override
+        public String toString() {
+            return "NotifyTerminateTask{}";
         }
     }
 }
