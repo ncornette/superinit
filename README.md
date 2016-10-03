@@ -1,3 +1,8 @@
+[![Build Status](https://travis-ci.org/ncornette/superinit.svg?branch=master)](https://travis-ci.org/ncornette/superinit)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/b9b30724b03149f3abde10c021be7437)](https://www.codacy.com/app/nicolas-cornette/superinit?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=ncornette/superinit&amp;utm_campaign=Badge_Grade)
+[![codecov](https://codecov.io/gh/ncornette/superinit/branch/master/graph/badge.svg)](https://codecov.io/gh/ncornette/superinit)
+[ ![Download](https://api.bintray.com/packages/ncornette/maven/superinit/images/download.svg) ](https://bintray.com/ncornette/maven/superinit/_latestVersion)
+
 # Superinit
 
 Async dependency tree loader
@@ -5,13 +10,18 @@ Async dependency tree loader
 ## Gradle
 
 ```groovy
+
+repositories {
+    jcenter()
+}
+
 dependencies {
 	// Your dependencies
 	...
 
 	// Async dependency tree loader
     // https://github.com/ncornette/superinit
-    compile 'com.ncornette.superinit:superinit:0.9.0'
+    compile 'com.ncornette.superinit:superinit:0.9.2'
 }
 ```
 
