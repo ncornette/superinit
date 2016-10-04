@@ -2,13 +2,13 @@ package com.ncornette.superinit;
 
 import com.ncornette.superinit.InitLoaderTest.WaitTask;
 
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.InOrder;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
@@ -23,7 +23,7 @@ public class InitNodeTest {
     private Runnable runnableA;
     private Runnable runnableB;
     private Runnable runnableC;
-    private InitLoader.InitLoaderCallback loaderCallback;
+    private InitLoaderCallback loaderCallback;
     private InitLoader initLoader;
 
     @Before
@@ -33,7 +33,7 @@ public class InitNodeTest {
         runnableB = spy(new WaitTask("B", 40));
         runnableC = spy(new WaitTask("C", 40));
 
-        loaderCallback = mock(InitLoader.InitLoaderCallback.class);
+        loaderCallback = mock(InitLoaderCallback.class);
     }
 
     @After
@@ -43,6 +43,7 @@ public class InitNodeTest {
             return;
         }
 
+        initLoader.shutdown();
         initLoader.await();
         for (InitNode initNode : initLoader.resolved) {
             System.out.println(String.format("Result for %s: %s", initNode,
@@ -141,7 +142,8 @@ public class InitNodeTest {
         verify(runnableB, timeout(600)).run();
         initLoader.interrupt();
 
-        initLoader.await();
+        initLoader.shutdown();
+        assertThat(initLoader.await()).isTrue();
         verify(runnableA, never()).run();
         assertThat(nodeA.getError()).isNotNull();
 
@@ -149,5 +151,47 @@ public class InitNodeTest {
         verify(loaderCallback, never()).onFinished();
 
     }
+
+    @Test
+    public void test_InitNode_Load_Twice() throws Exception {
+
+        // Given
+        initLoader = new InitLoader(2);
+        InitNode node = new InitNode();
+        initLoader.load(null, node);
+
+        try {
+
+            // When
+            initLoader.load(null, node);
+            fail("Expected failure when trying to load twice");
+        } catch (IllegalStateException e) {
+
+            // Then
+            assertThat(e.getMessage()).isNotEmpty();
+        }
+    }
+
+
+    @Test
+    public void test_InitNode_Run_Twice() throws Exception {
+
+        // When
+        InitNode node = new InitNode();
+        node.run();
+
+        try {
+
+            // When
+            node.run();
+            fail("Expected failure when trying to run node twice");
+        } catch (IllegalStateException e) {
+
+            // Then
+            assertThat(e.getMessage()).isNotEmpty();
+        }
+    }
+
+
 
 }

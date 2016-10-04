@@ -30,8 +30,9 @@ public abstract class InitLoaderTest {
     TestInitNode initG;
     TestInitNode initH;
     TestInitNode initI;
-    private InitLoader.InitLoaderCallback spyLoadedCallback;
+    private InitLoaderCallback spyLoadedCallback;
     private InitLoader initLoader;
+    private int timeout;
 
     @Before
     public void setUp() throws Exception {
@@ -50,6 +51,7 @@ public abstract class InitLoaderTest {
         initNodes.addAll(Arrays.asList(initA, initB, initC, initD, initE, initF, initG, initH, initI));
 
         spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNodes));
+        timeout = 2000;
     }
 
     @After
@@ -59,12 +61,13 @@ public abstract class InitLoaderTest {
             return;
         }
 
+        initLoader.shutdown();
         initLoader.await();
         for (InitNode initNode : initLoader.resolved) {
             System.out.println(String.format("Result for %s: %s", initNode,
-                    initNode.success() ? "Success" :
+                    initNode.error() ? "Error: "+ initNode.getError().getMessage() :
                             initNode.cancelled() ? "Cancelled" :
-                                    initNode.error() ? "Error: "+ initNode.getError().getMessage() :
+                                    initNode.success() ? "Success" :
                                             "Not Executed."));
 
         }
@@ -75,47 +78,6 @@ public abstract class InitLoaderTest {
     }
 
     protected abstract void setupDependencies();
-
-    @Test
-    public void test_InitNode_Load_Twice() throws Exception {
-
-        // Given
-        initLoader = new InitLoader(2);
-        InitNode node = new InitNode();
-        initLoader.load(null, node);
-
-        try {
-
-            // When
-            initLoader.load(null, node);
-            fail("Expected failure when trying to load twice");
-        } catch (IllegalStateException e) {
-
-            // Then
-            assertThat(e.getMessage()).isNotEmpty();
-        }
-    }
-
-
-    @Test
-    public void test_InitNode_Run_Twice() throws Exception {
-
-        // When
-        InitNode node = new InitNode();
-        node.run();
-
-        try {
-
-            // When
-            node.run();
-            fail("Expected failure when trying to run node twice");
-        } catch (IllegalStateException e) {
-
-            // Then
-            assertThat(e.getMessage()).isNotEmpty();
-        }
-    }
-
 
     @Test
     public void test_InitNode_Cancel() throws Exception {
@@ -151,7 +113,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(6000)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout)).onFinished();
     }
 
     @Test
@@ -165,7 +127,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(6000)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout)).onFinished();
     }
 
     @Test
@@ -179,7 +141,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(6000)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout)).onFinished();
     }
 
     @Test
@@ -193,7 +155,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(6000)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout)).onFinished();
     }
 
     @Test
@@ -207,7 +169,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(6000)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout)).onFinished();
     }
 
     @Test
@@ -298,17 +260,19 @@ public abstract class InitLoaderTest {
 
         // Given
         setupDependencies();
-        TestInitNode ErrorNode = new TestInitNode(new WaitTaskError(100, "ERROR"));
-        initA.dependsOn(ErrorNode);
-        initNodes.add(ErrorNode);
-        spyLoadedCallback = spy(new InitLoader.InitLoaderCallback() {
+        WaitTaskError errorTask = new WaitTaskError(100, "ERROR");
+        TestInitNode errorNode = new TestInitNode(errorTask);
+        initA.dependsOn(errorNode);
+        initI.dependsOn(errorNode);
+        initNodes.add(errorNode);
+        spyLoadedCallback = spy(new InitLoaderCallback() {
             @Override
             public void onFinished() {
 
             }
 
             @Override
-            public void onError(InitNode node, InitNode.NodeExecutionError t) {
+            public void onError(NodeExecutionError t) {
 
             }
 
@@ -323,14 +287,18 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        assertOnErrorDescendantsCancelled(initLoader, ErrorNode);
+        assertOnErrorDescendantsCancelled(initLoader, errorNode);
 
+        Collection<InitNode> errorTreeNodes = errorNode.newNodeWithDescendants();
+        assertThat(errorTreeNodes).extracting("task").contains(
+                errorTask, new WaitTask("A", taskDelay()), null);
     }
 
     private void assertOnErrorDescendantsCancelled(InitLoader initLoader, InitNode errorNode) throws InterruptedException {
 
-        verify(spyLoadedCallback, timeout(6000)).onError(any(InitNode.class), any(InitNode.NodeExecutionError.class));
+        verify(spyLoadedCallback, timeout(timeout)).onError(any(NodeExecutionError.class));
 
+        initLoader.shutdown();
         initLoader.await();
 
         verify(spyLoadedCallback, never()).onFinished();
@@ -364,7 +332,7 @@ public abstract class InitLoaderTest {
         }
     }
 
-    static class AssertNodesExecutedCallback implements InitLoader.InitLoaderCallback {
+    static class AssertNodesExecutedCallback implements InitLoaderCallback {
         private final List<? extends InitNode> initNodes;
 
         public AssertNodesExecutedCallback(InitNode... initNodes) {
@@ -383,8 +351,8 @@ public abstract class InitLoaderTest {
         }
 
         @Override
-        public void onError(InitNode node, InitNode.NodeExecutionError t) {
-            onError(null, t);
+        public void onError(NodeExecutionError t) {
+            onError(t);
         }
 
         @Override
@@ -402,7 +370,7 @@ public abstract class InitLoaderTest {
         @Override
         public void run() {
             super.run();
-            throw new RuntimeException("Error");
+            throw new RuntimeException("This task throws a RuntimeException");
         }
 
     }
@@ -432,6 +400,25 @@ public abstract class InitLoaderTest {
                     "'" + name + '\'' +
                     ", " + millis +
                     '}';
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            WaitTask waitTask = (WaitTask) o;
+
+            if (millis != waitTask.millis) return false;
+            return name.equals(waitTask.name);
+
+        }
+
+        @Override
+        public int hashCode() {
+            int result = name.hashCode();
+            result = 31 * result + millis;
+            return result;
         }
     }
 
@@ -466,5 +453,9 @@ public abstract class InitLoaderTest {
             super.runTask();
         }
 
+        @Override
+        public String toString() {
+            return "Test" + super.toString();
+        }
     }
 }

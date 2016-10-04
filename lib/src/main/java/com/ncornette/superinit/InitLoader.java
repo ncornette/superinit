@@ -1,25 +1,27 @@
 package com.ncornette.superinit;
 
-import com.ncornette.superinit.InitNode.NodeExecutionError;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class InitLoader {
 
     private final ExecutorService executorService;
+    private final MyThreadFactory threadFactory;
     Collection<InitNode> resolved;
 
-    public InitLoader(ExecutorService executorService) {
-        this.executorService = executorService;
-    }
-
     public InitLoader(int nThreads) {
-        this(Executors.newFixedThreadPool(nThreads));
+        threadFactory = new MyThreadFactory();
+        executorService = new ThreadPoolExecutor(nThreads, nThreads,
+                0L, TimeUnit.MILLISECONDS,
+                new LinkedBlockingQueue<>(), threadFactory);
     }
 
     public void load(InitLoaderCallback loaderCallback, Collection<? extends InitNode> initNodes) {
@@ -36,7 +38,10 @@ public class InitLoader {
         try {
             executeNodes(loaderCallback, resolved);
         } catch (Exception e) {
-            loaderCallback.onError(e);
+            cancel();
+            if (loaderCallback != null) {
+                loaderCallback.onError(e);
+            }
         }
     }
 
@@ -48,13 +53,6 @@ public class InitLoader {
         for (InitNode node : nodes) {
             node.setUncaughtExceptionHandler(new NodeUncaughtExceptionHandler(this, loaderCallback));
             executorService.execute(node);
-        }
-    }
-
-    public void cancel() {
-        executorService.shutdown();
-        for (InitNode initNode : resolved) {
-            initNode.cancel();
         }
     }
 
@@ -89,25 +87,26 @@ public class InitLoader {
         }
     }
 
-    public void await() throws InterruptedException {
+    public void cancel() {
+        shutdown();
+        for (InitNode initNode : resolved) {
+            initNode.cancel();
+        }
+    }
+
+    public void shutdown() {
+        executorService.shutdown();
+    }
+
+    public boolean await() throws InterruptedException {
         for (InitNode initNode : resolved) {
             initNode.await();
         }
+        return executorService.awaitTermination(1, TimeUnit.SECONDS);
     }
 
     public void interrupt() {
         executorService.shutdownNow();
-    }
-
-
-    public interface InitLoaderCallback {
-
-        void onFinished();
-
-        void onError(InitNode node, NodeExecutionError t);
-
-        void onError(Throwable t);
-
     }
 
     private static class NodeUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
@@ -125,7 +124,7 @@ public class InitLoader {
                 if (throwable instanceof NodeExecutionError) {
                     NodeExecutionError nodeExecutionError = (NodeExecutionError) throwable;
                     if (loaderCallback != null) {
-                        loaderCallback.onError(nodeExecutionError.node(), nodeExecutionError);
+                        loaderCallback.onError(nodeExecutionError);
                     }
                     nodeExecutionError.node().cancel();
                 } else {
@@ -141,23 +140,19 @@ public class InitLoader {
         }
     }
 
-    private static class NotifyTerminateTask implements Runnable {
-        private final InitLoaderCallback loaderCallback;
+    private static class MyThreadFactory implements ThreadFactory {
 
-        public NotifyTerminateTask(InitLoaderCallback loaderCallback) {
-            this.loaderCallback = loaderCallback;
+        private final AtomicInteger threadNumber = new AtomicInteger(1);
+        private final ThreadGroup threadGroup;
+
+        public MyThreadFactory() {
+            threadGroup = new ThreadGroup("InitLoader");
         }
 
         @Override
-        public void run() {
-            if (loaderCallback != null) {
-                loaderCallback.onFinished();
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "NotifyTerminateTask{}";
+        public Thread newThread(Runnable r) {
+            return new Thread(threadGroup, r,
+                    String.format("InitLoader-thread-%d", threadNumber.getAndIncrement()));
         }
     }
 }

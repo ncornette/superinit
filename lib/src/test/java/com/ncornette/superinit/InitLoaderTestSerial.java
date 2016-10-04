@@ -28,11 +28,6 @@ public class InitLoaderTestSerial extends InitLoaderTest {
     }
 
     @Override @Test
-    public void test_InitNode_Run_Twice() throws Exception {
-        super.test_InitNode_Run_Twice();
-    }
-
-    @Override @Test
     public void test_InitLoader_1Thread() throws Exception {
         super.test_InitLoader_1Thread();
     }

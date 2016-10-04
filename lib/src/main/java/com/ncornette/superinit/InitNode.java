@@ -3,6 +3,7 @@ package com.ncornette.superinit;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -18,16 +19,20 @@ public class InitNode implements Runnable {
     private Runnable task;
     private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
 
-    private boolean executed = false;
-    private boolean cancelled = false;
-    private Exception error = null;
+    private volatile boolean executed = false;
+    private volatile boolean cancelled = false;
+    private volatile Exception error = null;
+
+    public Collection<InitNode> newNodeWithDescendants() {
+        return newNodeWithDescendants(this);
+    }
 
     public InitNode() {
         this(null);
     }
 
     public InitNode(Runnable task) {
-        this.task = task == null ? new EmptyRunnable(): task;
+        this.task = task;
     }
 
     public boolean finished() {
@@ -97,6 +102,7 @@ public class InitNode implements Runnable {
                 dependency.await();
             } catch (InterruptedException e) {
                 error = e;
+                cancel();
                 throw new NodeExecutionError(this, e);
             }
         }
@@ -109,6 +115,7 @@ public class InitNode implements Runnable {
             runTask();
         } catch (Exception e) {
             error = e;
+            cancel();
             throw new NodeExecutionError(this, e);
         }
 
@@ -119,7 +126,9 @@ public class InitNode implements Runnable {
     }
 
     protected void runTask() {
-        this.task.run();
+        if (this.task != null) {
+            this.task.run();
+        }
     }
 
     @Override
@@ -139,6 +148,38 @@ public class InitNode implements Runnable {
         }
     }
 
+
+    InitNode newNode() {
+        InitNode newInitNode = new InitNode(this.task);
+        return newInitNode;
+    }
+
+    static Collection<InitNode> newNodeWithDescendants(InitNode... rootNodes) {
+        return newNodeWithDescendants(Arrays.asList(rootNodes));
+    }
+
+    static Collection<InitNode> newNodeWithDescendants(Collection<InitNode> rootNodes) {
+        HashMap<InitNode, InitNode> nodesList = new HashMap<>();
+        for (InitNode rootNode : rootNodes) {
+            newNodesWithDescendants(rootNode, rootNode.newNode(), rootNode.descendants, nodesList);
+        }
+        return nodesList.values();
+    }
+
+    private static void newNodesWithDescendants(InitNode node, InitNode newNode, Set<InitNode> descendants, HashMap<InitNode, InitNode> nodes) {
+        if (nodes.containsKey(node)) {
+            return;
+        }
+        nodes.put(node, newNode);
+        for (InitNode descendant : descendants) {
+            if (!(descendant.task instanceof NotifyTerminateTask)) {
+                InitNode newDescendant = descendant.newNode();
+                newDescendant.dependsOn(newNode);
+                newNodesWithDescendants(descendant, newDescendant, descendant.descendants, nodes);
+            }
+        }
+    }
+
     private boolean setDependencies(Collection<InitNode> dependencies) {
         return this.dependencies.addAll(dependencies);
     }
@@ -152,25 +193,5 @@ public class InitNode implements Runnable {
         }
 
     }
-
-    private static class EmptyRunnable implements Runnable {
-        @Override public void run() {}
-    }
-
-    public static class NodeExecutionError extends RuntimeException {
-
-        private InitNode node;
-
-        NodeExecutionError(InitNode node, Exception e) {
-            super("Failed running node: " + node, e);
-            this.node = node;
-        }
-
-        public InitNode node() {
-            return node;
-        }
-    }
-
-
 
 }
