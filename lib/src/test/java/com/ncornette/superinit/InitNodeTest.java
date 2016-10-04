@@ -5,17 +5,20 @@ import com.ncornette.superinit.InitLoaderTest.WaitTask;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentMatcher;
 import org.mockito.InOrder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Matchers.argThat;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class InitNodeTest {
@@ -146,9 +149,25 @@ public class InitNodeTest {
         verify(runnableA, never()).run();
         assertThat(nodeA.getError()).isNotNull();
 
-        verify(loaderCallback, atLeastOnce()).onError(any(InterruptedException.class));
         verify(loaderCallback, never()).onFinished();
 
+        verify(loaderCallback, timeout(600)).onError(argThat(nodeExecutionError(nodeA)));
+    }
+
+    static ArgumentMatcher<NodeExecutionError> nodeExecutionError(final InitNode nodeA) {
+        return new ArgumentMatcher<NodeExecutionError>() {
+            @Override
+            public boolean matches(Object argument) {
+                if (argument instanceof NodeExecutionError) {
+                    NodeExecutionError nodeExecutionError = (NodeExecutionError) argument;
+                    if (nodeExecutionError.getCause() == nodeA.getError()
+                            && nodeExecutionError.node() == nodeA) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        };
     }
 
     @Test

@@ -9,13 +9,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import static com.ncornette.superinit.InitNodeTest.nodeExecutionError;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public abstract class InitLoaderTest {
@@ -295,11 +297,11 @@ public abstract class InitLoaderTest {
 
     private void assertOnErrorDescendantsCancelled(InitLoader initLoader, InitNode errorNode) throws InterruptedException {
 
-        verify(spyLoadedCallback, timeout(timeout)).onError(any(NodeExecutionError.class));
-
         initLoader.awaitTermination();
 
-        verify(spyLoadedCallback).onFinished();
+        verify(spyLoadedCallback, times(1)).onFinished();
+
+        verify(spyLoadedCallback, timeout(600)).onError(argThat(nodeExecutionError(errorNode)));
 
         assertThat(errorNode.error()).isTrue();
         assertThat(errorNode.cancelled()).isFalse();
@@ -326,22 +328,18 @@ public abstract class InitLoaderTest {
         }
     }
 
-    void getAllDescendants(InitNode node, List<InitNode> descendants) {
+    static void getAllDescendants(InitNode node, List<InitNode> descendants) {
         for (InitNode descendant : node.descendants) {
             descendants.add(descendant);
             getAllDescendants(descendant, descendants);
         }
     }
 
-    static class AssertNodesExecutedCallback implements InitLoaderCallback {
+    private static class AssertNodesExecutedCallback implements InitLoaderCallback {
         private final List<? extends InitNode> initNodes;
 
-        public AssertNodesExecutedCallback(InitNode... initNodes) {
-            this(Arrays.asList(initNodes));
-        }
-
-        AssertNodesExecutedCallback(List<? extends InitNode> initNodes) {
-            this.initNodes = initNodes;
+        public AssertNodesExecutedCallback(List<? extends InitNode> initNodes1) {
+            initNodes = initNodes1;
         }
 
         @Override
@@ -422,7 +420,6 @@ public abstract class InitLoaderTest {
             return result;
         }
     }
-
 
     class TestInitNode extends InitNode {
 
