@@ -43,8 +43,7 @@ public class InitNodeTest {
             return;
         }
 
-        initLoader.shutdown();
-        initLoader.await();
+        initLoader.awaitTermination();
         for (InitNode initNode : initLoader.resolved) {
             System.out.println(String.format("Result for %s: %s", initNode,
                     initNode.success() ? "Success" :
@@ -142,8 +141,8 @@ public class InitNodeTest {
         verify(runnableB, timeout(600)).run();
         initLoader.interrupt();
 
-        initLoader.shutdown();
-        assertThat(initLoader.await()).isTrue();
+        initLoader.awaitTermination();
+
         verify(runnableA, never()).run();
         assertThat(nodeA.getError()).isNotNull();
 

@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 public class InitNode implements Runnable {
 
@@ -19,6 +20,7 @@ public class InitNode implements Runnable {
     private Runnable task;
     private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
 
+    private volatile boolean started = false;
     private volatile boolean executed = false;
     private volatile boolean cancelled = false;
     private volatile Exception error = null;
@@ -78,15 +80,29 @@ public class InitNode implements Runnable {
         countDownLatch.await();
     }
 
+    protected boolean await(long value, TimeUnit unit) throws InterruptedException {
+        return countDownLatch.await(value, unit);
+    }
+
     public void cancel() {
-        if (finished()) {
-            return;
+        System.out.println("cancel: " + this);
+        if (!started) {
+            cancelled = true;
         }
-        cancelled = true;
-        for (InitNode descendant : descendants) {
-            descendant.cancel();
+
+        try {
+            for (InitNode descendant : descendants) {
+                System.out.println("cancel desc: " + descendant);
+                if (!descendant.cancelled()) {
+                    descendant.cancel();
+                }
+            }
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
+        } finally {
+            System.out.println("unlock: "+this);
+            unlock();
         }
-        unlock();
     }
 
     @Override
@@ -99,7 +115,7 @@ public class InitNode implements Runnable {
         }
         for (InitNode dependency : dependencies) {
             try {
-                dependency.await();
+                while(!dependency.await(100, TimeUnit.MILLISECONDS));
             } catch (InterruptedException e) {
                 error = e;
                 cancel();
@@ -112,6 +128,7 @@ public class InitNode implements Runnable {
         }
 
         try {
+            started = true;
             runTask();
         } catch (Exception e) {
             error = e;
@@ -143,9 +160,7 @@ public class InitNode implements Runnable {
     }
 
     void unlock() {
-        if (countDownLatch.getCount() == 1) {
-            countDownLatch.countDown();
-        }
+        countDownLatch.countDown();
     }
 
 
@@ -172,7 +187,7 @@ public class InitNode implements Runnable {
         }
         nodes.put(node, newNode);
         for (InitNode descendant : descendants) {
-            if (!(descendant.task instanceof NotifyTerminateTask)) {
+            if (!(descendant instanceof TerminateInitNode)) {
                 InitNode newDescendant = descendant.newNode();
                 newDescendant.dependsOn(newNode);
                 newNodesWithDescendants(descendant, newDescendant, descendant.descendants, nodes);

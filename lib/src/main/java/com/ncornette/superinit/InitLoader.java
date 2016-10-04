@@ -16,6 +16,7 @@ public class InitLoader {
     private final ExecutorService executorService;
     private final MyThreadFactory threadFactory;
     Collection<InitNode> resolved;
+    private InitNode endNode;
 
     public InitLoader(int nThreads) {
         threadFactory = new MyThreadFactory();
@@ -28,10 +29,12 @@ public class InitLoader {
         if (resolved != null) {
             throw new IllegalStateException("Load() method already called");
         }
+
+        endNode = new TerminateInitNode(loaderCallback);
+
         resolved = new ArrayList<>();
         dep_resolve(initNodes, resolved);
 
-        InitNode endNode = new InitNode(new NotifyTerminateTask(loaderCallback));
         endNode.dependsOn(resolved);
         resolved.add(endNode);
 
@@ -44,6 +47,8 @@ public class InitLoader {
             }
         }
     }
+
+
 
     public void load(InitLoaderCallback loaderCallback, InitNode... initNodes) {
         load(loaderCallback, Arrays.asList(initNodes));
@@ -90,7 +95,9 @@ public class InitLoader {
     public void cancel() {
         shutdown();
         for (InitNode initNode : resolved) {
-            initNode.cancel();
+            if (!initNode.cancelled()) {
+                initNode.cancel();
+            }
         }
     }
 
@@ -98,11 +105,19 @@ public class InitLoader {
         executorService.shutdown();
     }
 
-    public boolean await() throws InterruptedException {
-        for (InitNode initNode : resolved) {
-            initNode.await();
+    public void awaitTasks() throws InterruptedException {
+        while (!endNode.await(100, TimeUnit.MILLISECONDS));
+    }
+
+    public void awaitTermination() throws InterruptedException {
+        if (executorService.isTerminated()) {
+            return;
         }
-        return executorService.awaitTermination(1, TimeUnit.SECONDS);
+        if (!executorService.isShutdown()) {
+            awaitTasks();
+            shutdown();
+        }
+        while(!executorService.awaitTermination(100, TimeUnit.MILLISECONDS));
     }
 
     public void interrupt() {
@@ -126,12 +141,14 @@ public class InitLoader {
                     if (loaderCallback != null) {
                         loaderCallback.onError(nodeExecutionError);
                     }
+                    // Cancel node in error & descendants
                     nodeExecutionError.node().cancel();
                 } else {
                     // Cancel all tasks from initloader
                     if (loaderCallback != null) {
                         loaderCallback.onError(throwable);
                     }
+                    // Cancel all
                     initLoader.cancel();
                 }
             } catch (Exception e) {

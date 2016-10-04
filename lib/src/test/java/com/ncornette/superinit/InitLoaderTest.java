@@ -45,7 +45,7 @@ public abstract class InitLoaderTest {
         initF = new TestInitNode(new WaitTask("F", taskDelay()));
         initG = new TestInitNode(new WaitTask("G", taskDelay()));
         initH = new TestInitNode(new WaitTask("H", taskDelay()));
-        initI = new TestInitNode("I");
+        initI = new TestInitNode(new WaitTask("I", 0));
 
         initNodes = new ArrayList<>();
         initNodes.addAll(Arrays.asList(initA, initB, initC, initD, initE, initF, initG, initH, initI));
@@ -61,8 +61,7 @@ public abstract class InitLoaderTest {
             return;
         }
 
-        initLoader.shutdown();
-        initLoader.await();
+        initLoader.awaitTermination();
         for (InitNode initNode : initLoader.resolved) {
             System.out.println(String.format("Result for %s: %s", initNode,
                     initNode.error() ? "Error: "+ initNode.getError().getMessage() :
@@ -94,10 +93,10 @@ public abstract class InitLoaderTest {
 
         initLoader.load(spyLoadedCallback, initNodes);
         initLoader.cancel();
-        initLoader.await();
+        initLoader.awaitTermination();
 
         // Then
-        verify(spyLoadedCallback, never()).onFinished();
+        verify(spyLoadedCallback).onFinished();
         verify(spyLoadedCallback, never()).onError((Throwable) anyObject());
     }
 
@@ -291,20 +290,19 @@ public abstract class InitLoaderTest {
 
         Collection<InitNode> errorTreeNodes = errorNode.newNodeWithDescendants();
         assertThat(errorTreeNodes).extracting("task").contains(
-                errorTask, new WaitTask("A", taskDelay()), null);
+                errorTask, new WaitTask("A", taskDelay()), new WaitTask("I", 0));
     }
 
     private void assertOnErrorDescendantsCancelled(InitLoader initLoader, InitNode errorNode) throws InterruptedException {
 
         verify(spyLoadedCallback, timeout(timeout)).onError(any(NodeExecutionError.class));
 
-        initLoader.shutdown();
-        initLoader.await();
+        initLoader.awaitTermination();
 
-        verify(spyLoadedCallback, never()).onFinished();
+        verify(spyLoadedCallback).onFinished();
 
         assertThat(errorNode.error()).isTrue();
-        assertThat(errorNode.cancelled()).isTrue();
+        assertThat(errorNode.cancelled()).isFalse();
         assertThat(errorNode.success()).isFalse();
 
         List<InitNode> cancelledNodes = new ArrayList<>();
@@ -315,6 +313,9 @@ public abstract class InitLoaderTest {
         successNodes.remove(errorNode);
 
         for (InitNode cancelledNode : cancelledNodes) {
+            if (cancelledNode instanceof TerminateInitNode) {
+                continue;
+            }
             assertThat(cancelledNode.finished()).isTrue();
             assertThat(cancelledNode.cancelled()).isTrue();
         }
@@ -346,7 +347,7 @@ public abstract class InitLoaderTest {
         @Override
         public void onFinished() {
             for (InitNode initNode : initNodes) {
-                assertThat(initNode.finished()).isTrue();
+                assertThat(initNode.finished() || initNode.cancelled()).isTrue();
             }
         }
 
@@ -457,5 +458,6 @@ public abstract class InitLoaderTest {
         public String toString() {
             return "Test" + super.toString();
         }
+
     }
 }
