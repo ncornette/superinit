@@ -90,10 +90,12 @@ public class InitNodeTest {
 
         // Given
         InitNode nodeA = new InitNode(runnableA);
+        InitNode nodeB = new InitNode(runnableB);
+        nodeA.dependsOn(nodeB);
 
         // When
         initLoader = new InitLoader(3);
-        initLoader.load(loaderCallback, nodeA);
+        initLoader.load(loaderCallback, nodeA, nodeB);
 
         // Then
         verify(runnableA, times(0)).run();
@@ -165,16 +167,19 @@ public class InitNodeTest {
     }
 
     static ArgumentMatcher<NodeExecutionError> nodeExecutionError(final InitNode errorNode) {
-        return argument -> {
-            if (argument instanceof NodeExecutionError) {
-                NodeExecutionError nodeExecutionError = (NodeExecutionError) argument;
-                if (nodeExecutionError.getCause().getClass() == errorNode.getError().getClass()
-                        && nodeExecutionError.getCause().getMessage() == errorNode.getError().getMessage()
-                        && nodeExecutionError.node().task() == errorNode.task()) {
-                    return true;
+        return new ArgumentMatcher<NodeExecutionError>() {
+            @Override
+            public boolean matches(Object argument) {
+                if (argument instanceof NodeExecutionError) {
+                    NodeExecutionError nodeExecutionError = (NodeExecutionError) argument;
+                    if (nodeExecutionError.getCause().getClass() == errorNode.getError().getClass()
+                            && nodeExecutionError.getCause().getMessage() == errorNode.getError().getMessage()
+                            && nodeExecutionError.node().task() == errorNode.task()) {
+                        return true;
+                    }
                 }
+                return false;
             }
-            return false;
         };
     }
 

@@ -25,7 +25,7 @@ public class InitLoader {
         threadFactory = new MyThreadFactory();
         executorService = new ThreadPoolExecutor(nThreads, nThreads,
                 0L, TimeUnit.MILLISECONDS,
-                new LinkedBlockingQueue<>(), threadFactory);
+                new LinkedBlockingQueue<Runnable>(), threadFactory);
     }
 
     public void load(InitLoaderCallback loaderCallback, Collection<? extends InitNode> initNodes) {
@@ -181,7 +181,7 @@ public class InitLoader {
 
     private void addErrorNodes(InitNode... node) {
         if (errorNodes == null) {
-            errorNodes = Collections.synchronizedList(new ArrayList<>());
+            errorNodes = Collections.synchronizedList(new ArrayList<InitNode>());
         }
         errorNodes.addAll(Arrays.asList(node));
     }
