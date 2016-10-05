@@ -21,7 +21,7 @@ dependencies {
 
 	// Async dependency tree loader
     // https://github.com/ncornette/superinit
-    compile 'com.ncornette.superinit:superinit:0.9.2'
+    compile 'com.ncornette.superinit:superinit:0.9.4'
 }
 ```
 
@@ -49,6 +49,24 @@ Then use `InitLoader.load()` to execute all nodes in order based on dependencies
     // Execute tasks
     initLoader.load(loaderCallback, nodeA, nodeB, nodeC);
 
+```
+
+Use the `InitLoaderCallback` interface to be notified of the `InitLoader`
+
+```java
+public interface InitLoaderCallback {
+
+    // Is called once on success, even if error occurred
+    // Not called if InitLoader.interrupt() is called during execution 
+    void onFinished();
+
+    // Is called each time a node execution fails with an Exception
+    void onError(NodeExecutionError nodeError);
+
+    // Is called when an exception occurs outside a node execution
+    void onError(Throwable error);
+
+}
 ```
 
 ## Features

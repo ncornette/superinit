@@ -35,7 +35,7 @@ public class InitNodeTest {
         runnableB = spy(new WaitTask("B", 40));
         runnableC = spy(new WaitTask("C", 40));
 
-        loaderCallback = mock(InitLoaderCallback.class);
+        loaderCallback = spy(new LogInitLoaderCallback());
     }
 
     @After
@@ -82,6 +82,7 @@ public class InitNodeTest {
 
         verify(loaderCallback, timeout(600).times(1)).onFinished();
         verify(loaderCallback, timeout(600).times(0)).onError(any(Throwable.class));
+        verify(loaderCallback, timeout(600).times(0)).onNodeError(any(NodeExecutionError.class));
 
     }
 
@@ -162,8 +163,8 @@ public class InitNodeTest {
         assertThat(nodeA.getError()).isNotNull();
 
         verify(loaderCallback, timeout(600).times(0)).onFinished();
-
-        verify(loaderCallback, timeout(600).times(1)).onError(argThat(nodeExecutionError(nodeA)));
+        verify(loaderCallback, timeout(600).times(0)).onError(any(InterruptedException.class));
+        verify(loaderCallback, timeout(600).times(3)).onNodeError(any(NodeExecutionError.class));
     }
 
     static ArgumentMatcher<NodeExecutionError> nodeExecutionError(final InitNode errorNode) {
@@ -250,7 +251,7 @@ public class InitNodeTest {
         initLoader.awaitTasks();
         verify(runnableC, timeout(600)).run();
 
-        verify(loaderCallback, timeout(600).times(1)).onError(argThat(nodeExecutionError(nodeError)));
+        verify(loaderCallback, timeout(600).times(1)).onNodeError(argThat(nodeExecutionError(nodeError)));
         verify(loaderCallback, timeout(600).times(1)).onFinished();
         verify(runnableA, timeout(600).times(0)).run();
 
@@ -258,7 +259,7 @@ public class InitNodeTest {
         initLoader.retry();
         initLoader.awaitTasks();
 
-        verify(loaderCallback, timeout(600).times(2)).onError(argThat(nodeExecutionError(nodeError)));
+        verify(loaderCallback, timeout(600).times(2)).onNodeError(argThat(nodeExecutionError(nodeError)));
         verify(loaderCallback, timeout(600).times(2)).onFinished();
         verify(runnableA, never()).run();
 
@@ -268,7 +269,8 @@ public class InitNodeTest {
         initLoader.awaitTermination();
 
         verify(loaderCallback, timeout(600).times(1)).onFinished();
-        verify(loaderCallback, timeout(600).times(0)).onError(any(NodeExecutionError.class));
+        verify(loaderCallback, timeout(600).times(0)).onNodeError(any(NodeExecutionError.class));
+        verify(loaderCallback, timeout(600).times(0)).onError(any(Throwable.class));
         verify(runnableA, timeout(600).times(1)).run();
 
         // Retry on terminated loader
@@ -281,4 +283,21 @@ public class InitNodeTest {
     }
 
 
+    private class LogInitLoaderCallback implements InitLoaderCallback {
+
+        @Override
+        public void onFinished() {
+            System.err.println("finished");
+        }
+
+        @Override
+        public void onNodeError(NodeExecutionError nodeError) {
+            nodeError.printStackTrace();
+        }
+
+        @Override
+        public void onError(Throwable error) {
+            error.printStackTrace();
+        }
+    }
 }

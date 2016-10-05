@@ -4,7 +4,7 @@ public interface InitLoaderCallback {
 
     void onFinished();
 
-    void onError(NodeExecutionError nodeError);
+    void onNodeError(NodeExecutionError nodeError);
 
     void onError(Throwable error);
 

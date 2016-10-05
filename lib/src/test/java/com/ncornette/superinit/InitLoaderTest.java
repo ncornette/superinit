@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static com.ncornette.superinit.InitNodeTest.nodeExecutionError;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.spy;
@@ -272,7 +273,7 @@ public abstract class InitLoaderTest {
             }
 
             @Override
-            public void onError(NodeExecutionError t) {
+            public void onNodeError(NodeExecutionError t) {
 
             }
 
@@ -299,8 +300,8 @@ public abstract class InitLoaderTest {
         initLoader.awaitTermination();
 
         verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
-
-        verify(spyLoadedCallback, timeout(timeout).times(1)).onError(argThat(nodeExecutionError(errorNode)));
+        verify(spyLoadedCallback, timeout(timeout).times(0)).onError(any(Throwable.class));
+        verify(spyLoadedCallback, timeout(timeout).times(1)).onNodeError(argThat(nodeExecutionError(errorNode)));
 
         assertThat(errorNode.error()).isTrue();
         assertThat(errorNode.cancelled()).isFalse();
@@ -349,13 +350,13 @@ public abstract class InitLoaderTest {
         }
 
         @Override
-        public void onError(NodeExecutionError t) {
-            onError(t);
+        public void onNodeError(NodeExecutionError t) {
+            System.err.println(t.getMessage());
         }
 
         @Override
         public void onError(Throwable t) {
-            t.printStackTrace();
+            System.err.println(t.getMessage());
         }
     }
 
@@ -397,7 +398,7 @@ public abstract class InitLoaderTest {
             try {
                 Thread.sleep(millis);
             } catch (InterruptedException e) {
-                fail("Interrupted", e);
+                throw new RuntimeException("Interrupted", e);
             }
         }
 

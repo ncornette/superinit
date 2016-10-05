@@ -160,7 +160,7 @@ public class InitLoader {
                 if (throwable instanceof NodeExecutionError) {
                     NodeExecutionError nodeExecutionError = (NodeExecutionError) throwable;
                     if (loaderCallback != null) {
-                        loaderCallback.onError(nodeExecutionError);
+                        loaderCallback.onNodeError(nodeExecutionError);
                     }
                     // Cancel node in error & descendants
                     nodeExecutionError.node().cancel();
