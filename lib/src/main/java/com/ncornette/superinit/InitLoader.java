@@ -3,6 +3,7 @@ package com.ncornette.superinit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -17,6 +18,8 @@ public class InitLoader {
     private final MyThreadFactory threadFactory;
     Collection<InitNode> resolved;
     private InitNode endNode;
+    private List<InitNode> errorNodes;
+    private InitLoaderCallback loaderCallback;
 
     public InitLoader(int nThreads) {
         threadFactory = new MyThreadFactory();
@@ -26,12 +29,13 @@ public class InitLoader {
     }
 
     public void load(InitLoaderCallback loaderCallback, Collection<? extends InitNode> initNodes) {
+        this.loaderCallback = loaderCallback;
+        errorNodes = null;
         if (resolved != null) {
             throw new IllegalStateException("Load() method already called");
         }
 
         endNode = new TerminateInitNode(loaderCallback);
-
         resolved = new ArrayList<>();
         dep_resolve(initNodes, resolved);
 
@@ -124,6 +128,23 @@ public class InitLoader {
         executorService.shutdownNow();
     }
 
+    public void retry() {
+        retry(loaderCallback);
+    }
+
+    public void retry(InitLoaderCallback newCallback) {
+        if (executorService.isTerminated() || executorService.isShutdown()) {
+            throw new IllegalStateException("ExecutorService is terminated or shutdown.");
+        }
+        resolved = null;
+        endNode = null;
+
+        Collection<InitNode> initNodes = InitNode.newNodesWithDescendants(errorNodes);
+        if (initNodes != null) {
+            load(newCallback, initNodes);
+        }
+    }
+
     private static class NodeUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
         private InitLoader initLoader;
         private final InitLoaderCallback loaderCallback;
@@ -143,6 +164,7 @@ public class InitLoader {
                     }
                     // Cancel node in error & descendants
                     nodeExecutionError.node().cancel();
+                    initLoader.addErrorNodes(nodeExecutionError.node());
                 } else {
                     // Cancel all tasks from initloader
                     if (loaderCallback != null) {
@@ -155,6 +177,13 @@ public class InitLoader {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void addErrorNodes(InitNode... node) {
+        if (errorNodes == null) {
+            errorNodes = Collections.synchronizedList(new ArrayList<>());
+        }
+        errorNodes.addAll(Arrays.asList(node));
     }
 
     private static class MyThreadFactory implements ThreadFactory {

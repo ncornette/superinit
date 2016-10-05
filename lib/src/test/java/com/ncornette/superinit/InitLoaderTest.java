@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.ncornette.superinit.InitNodeTest.nodeExecutionError;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -290,7 +291,7 @@ public abstract class InitLoaderTest {
         // Then
         assertOnErrorDescendantsCancelled(initLoader, errorNode);
 
-        Collection<InitNode> errorTreeNodes = errorNode.newNodeWithDescendants();
+        Collection<InitNode> errorTreeNodes = errorNode.newNodesWithDescendants();
         assertThat(errorTreeNodes).extracting("task").contains(
                 errorTask, new WaitTask("A", taskDelay()), new WaitTask("I", 0));
     }
@@ -360,16 +361,25 @@ public abstract class InitLoaderTest {
         }
     }
 
-    private static class WaitTaskError extends WaitTask {
+    static class WaitTaskError extends WaitTask {
+
+        private AtomicInteger countDown = new AtomicInteger();
 
         WaitTaskError(int millis, String name) {
+            this(millis, name, Integer.MAX_VALUE);
+        }
+
+        WaitTaskError(int millis, String name, int countDown) {
             super(name, millis);
+            this.countDown.set(countDown);
         }
 
         @Override
         public void run() {
             super.run();
-            throw new RuntimeException("This task throws a RuntimeException");
+            if (countDown.getAndDecrement() > 0) {
+                throw new RuntimeException("This task throws a RuntimeException");
+            }
         }
 
     }

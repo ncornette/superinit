@@ -7,12 +7,13 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentMatcher;
 import org.mockito.InOrder;
+import org.mockito.internal.verification.NoMoreInteractions;
+import org.mockito.verification.Timeout;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -210,6 +211,51 @@ public class InitNodeTest {
         }
     }
 
+
+    @Test
+    public void test_Retry() throws Exception {
+
+        // Given
+
+        // Define nodes
+
+        InitNode nodeA = new InitNode(runnableA);
+        InitNode nodeB = new InitNode(runnableB);
+        InitNode nodeC = new InitNode(runnableC);
+        InitNode nodeError = new InitNode(new InitLoaderTest.WaitTaskError(200, "Error", 1));
+
+        // Define dependencies
+        nodeA.dependsOn(nodeB);
+        nodeB.dependsOn(nodeError);
+
+        // When
+
+        // Load tasks
+        initLoader = new InitLoader(3);
+        initLoader.load(loaderCallback, nodeA, nodeB, nodeC);
+
+        // Then
+        verify(runnableC, timeout(600)).run();
+
+        verify(loaderCallback, timeout(600)).onError(argThat(nodeExecutionError(nodeError)));
+        verify(loaderCallback, timeout(600)).onFinished();
+        verify(runnableA, never()).run();
+
+        loaderCallback = mock(InitLoaderCallback.class);
+        initLoader.retry(loaderCallback);
+        initLoader.awaitTermination();
+
+        verify(loaderCallback, timeout(600)).onFinished();
+        verify(loaderCallback, never()).onError(any(NodeExecutionError.class));
+        verify(runnableA, timeout(600)).run();
+
+        try {
+            initLoader.retry();
+            fail("Should fail, calling retry on terminated or shutdown InitLoader");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage()).isNotEmpty();
+        }
+    }
 
 
 }

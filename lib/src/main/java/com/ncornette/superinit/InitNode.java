@@ -25,8 +25,8 @@ public class InitNode implements Runnable {
     private volatile boolean cancelled = false;
     private volatile Exception error = null;
 
-    public Collection<InitNode> newNodeWithDescendants() {
-        return newNodeWithDescendants(this);
+    public Collection<InitNode> newNodesWithDescendants() {
+        return newNodesWithDescendants(this);
     }
 
     public InitNode() {
@@ -169,11 +169,11 @@ public class InitNode implements Runnable {
         return newInitNode;
     }
 
-    static Collection<InitNode> newNodeWithDescendants(InitNode... rootNodes) {
-        return newNodeWithDescendants(Arrays.asList(rootNodes));
+    static Collection<InitNode> newNodesWithDescendants(InitNode... rootNodes) {
+        return newNodesWithDescendants(Arrays.asList(rootNodes));
     }
 
-    static Collection<InitNode> newNodeWithDescendants(Collection<InitNode> rootNodes) {
+    static Collection<InitNode> newNodesWithDescendants(Collection<InitNode> rootNodes) {
         HashMap<InitNode, InitNode> nodesList = new HashMap<>();
         for (InitNode rootNode : rootNodes) {
             newNodesWithDescendants(rootNode, rootNode.newNode(), rootNode.descendants, nodesList);
