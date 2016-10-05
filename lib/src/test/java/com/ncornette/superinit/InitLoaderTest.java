@@ -15,10 +15,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.argThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public abstract class InitLoaderTest {
@@ -99,8 +97,8 @@ public abstract class InitLoaderTest {
         initLoader.awaitTermination();
 
         // Then
-        verify(spyLoadedCallback).onFinished();
-        verify(spyLoadedCallback, never()).onError((Throwable) anyObject());
+        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout).times(0)).onError((Throwable) anyObject());
     }
 
 
@@ -115,7 +113,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
     }
 
     @Test
@@ -129,7 +127,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
     }
 
     @Test
@@ -143,7 +141,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
     }
 
     @Test
@@ -157,7 +155,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
     }
 
     @Test
@@ -171,7 +169,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
     }
 
     @Test
@@ -244,7 +242,7 @@ public abstract class InitLoaderTest {
         boolean atStart = true;
         InitNode previousNode = null;
         for (InitNode initNode : resolved) {
-            if (initNode.dependencies.isEmpty()) {
+            if (initNode.dependencies().isEmpty()) {
                 if (!atStart) {
                     fail(String.format("Independent %s encountered after dependent Node %s\n" +
                                     "All independent Nodes should be executed first.",
@@ -300,9 +298,9 @@ public abstract class InitLoaderTest {
 
         initLoader.awaitTermination();
 
-        verify(spyLoadedCallback, times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
 
-        verify(spyLoadedCallback, timeout(600)).onError(argThat(nodeExecutionError(errorNode)));
+        verify(spyLoadedCallback, timeout(timeout).times(1)).onError(argThat(nodeExecutionError(errorNode)));
 
         assertThat(errorNode.error()).isTrue();
         assertThat(errorNode.cancelled()).isFalse();
@@ -330,7 +328,7 @@ public abstract class InitLoaderTest {
     }
 
     static void getAllDescendants(InitNode node, List<InitNode> descendants) {
-        for (InitNode descendant : node.descendants) {
+        for (InitNode descendant : node.descendants()) {
             descendants.add(descendant);
             getAllDescendants(descendant, descendants);
         }
@@ -454,7 +452,7 @@ public abstract class InitLoaderTest {
         @Override
         protected void runTask() {
             //System.out.printf("%s running on Thread: %s%n", this, Thread.currentThread());
-            for (InitNode initNode : dependencies) {
+            for (InitNode initNode : dependencies()) {
                 assertThat(initNode.finished()).isTrue();
             }
 

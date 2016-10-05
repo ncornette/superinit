@@ -7,8 +7,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentMatcher;
 import org.mockito.InOrder;
-import org.mockito.internal.verification.NoMoreInteractions;
-import org.mockito.verification.Timeout;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
@@ -19,8 +17,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class InitNodeTest {
 
@@ -63,33 +61,44 @@ public class InitNodeTest {
     public void test_InitNode() throws Exception {
 
         // Given
-
-        // Define nodes
         InitNode nodeA = new InitNode(runnableA);
         InitNode nodeB = new InitNode(runnableB);
         InitNode nodeC = new InitNode(runnableC);
 
-        // Define dependencies
         nodeA.dependsOn(nodeB);
 
         // When
-
-        // Load tasks
         initLoader = new InitLoader(3);
         initLoader.load(loaderCallback, nodeA, nodeB, nodeC);
 
         // Then
-        verify(runnableA, timeout(600)).run();
-        verify(runnableB, timeout(600)).run();
-        verify(runnableC, timeout(600)).run();
+        verify(runnableA, timeout(600).times(1)).run();
+        verify(runnableB, timeout(600).times(1)).run();
+        verify(runnableC, timeout(600).times(1)).run();
 
         InOrder inOrder = inOrder(runnableA, runnableB);
         inOrder.verify(runnableB).run();
         inOrder.verify(runnableA).run();
 
-        verify(loaderCallback, timeout(600)).onFinished();
-        verify(loaderCallback, never()).onError(any(Throwable.class));
+        verify(loaderCallback, timeout(600).times(1)).onFinished();
+        verify(loaderCallback, timeout(600).times(0)).onError(any(Throwable.class));
 
+    }
+
+    @Test
+    public void test_InitNode_Await() throws Exception {
+
+        // Given
+        InitNode nodeA = new InitNode(runnableA);
+
+        // When
+        initLoader = new InitLoader(3);
+        initLoader.load(loaderCallback, nodeA);
+
+        // Then
+        verify(runnableA, times(0)).run();
+        nodeA.await();
+        verify(runnableA, times(1)).run();
     }
 
     @Test
@@ -112,9 +121,9 @@ public class InitNodeTest {
         initLoader.load(null, nodeA, nodeB, nodeC);
 
         // Then
-        verify(runnableA, timeout(600)).run();
-        verify(runnableB, timeout(600)).run();
-        verify(runnableC, timeout(600)).run();
+        verify(runnableA, timeout(600).times(1)).run();
+        verify(runnableB, timeout(600).times(1)).run();
+        verify(runnableC, timeout(600).times(1)).run();
 
         InOrder inOrder = inOrder(runnableA, runnableB);
         inOrder.verify(runnableB).run();
@@ -142,32 +151,30 @@ public class InitNodeTest {
         initLoader.load(loaderCallback, nodeA, nodeB, nodeC);
 
         // Then
-        verify(runnableB, timeout(600)).run();
+        verify(runnableB, timeout(600).times(1)).run();
         initLoader.interrupt();
 
         initLoader.awaitTermination();
 
-        verify(runnableA, never()).run();
+        verify(runnableA, timeout(600).times(0)).run();
         assertThat(nodeA.getError()).isNotNull();
 
-        verify(loaderCallback, never()).onFinished();
+        verify(loaderCallback, timeout(600).times(0)).onFinished();
 
-        verify(loaderCallback, timeout(600)).onError(argThat(nodeExecutionError(nodeA)));
+        verify(loaderCallback, timeout(600).times(1)).onError(argThat(nodeExecutionError(nodeA)));
     }
 
-    static ArgumentMatcher<NodeExecutionError> nodeExecutionError(final InitNode nodeA) {
-        return new ArgumentMatcher<NodeExecutionError>() {
-            @Override
-            public boolean matches(Object argument) {
-                if (argument instanceof NodeExecutionError) {
-                    NodeExecutionError nodeExecutionError = (NodeExecutionError) argument;
-                    if (nodeExecutionError.getCause() == nodeA.getError()
-                            && nodeExecutionError.node() == nodeA) {
-                        return true;
-                    }
+    static ArgumentMatcher<NodeExecutionError> nodeExecutionError(final InitNode errorNode) {
+        return argument -> {
+            if (argument instanceof NodeExecutionError) {
+                NodeExecutionError nodeExecutionError = (NodeExecutionError) argument;
+                if (nodeExecutionError.getCause().getClass() == errorNode.getError().getClass()
+                        && nodeExecutionError.getCause().getMessage() == errorNode.getError().getMessage()
+                        && nodeExecutionError.node().task() == errorNode.task()) {
+                    return true;
                 }
-                return false;
             }
+            return false;
         };
     }
 
@@ -222,7 +229,7 @@ public class InitNodeTest {
         InitNode nodeA = new InitNode(runnableA);
         InitNode nodeB = new InitNode(runnableB);
         InitNode nodeC = new InitNode(runnableC);
-        InitNode nodeError = new InitNode(new InitLoaderTest.WaitTaskError(200, "Error", 1));
+        InitNode nodeError = new InitNode(new InitLoaderTest.WaitTaskError(200, "Error", 2));
 
         // Define dependencies
         nodeA.dependsOn(nodeB);
@@ -235,20 +242,31 @@ public class InitNodeTest {
         initLoader.load(loaderCallback, nodeA, nodeB, nodeC);
 
         // Then
+        initLoader.awaitTasks();
         verify(runnableC, timeout(600)).run();
 
-        verify(loaderCallback, timeout(600)).onError(argThat(nodeExecutionError(nodeError)));
-        verify(loaderCallback, timeout(600)).onFinished();
+        verify(loaderCallback, timeout(600).times(1)).onError(argThat(nodeExecutionError(nodeError)));
+        verify(loaderCallback, timeout(600).times(1)).onFinished();
+        verify(runnableA, timeout(600).times(0)).run();
+
+        // First retry
+        initLoader.retry();
+        initLoader.awaitTasks();
+
+        verify(loaderCallback, timeout(600).times(2)).onError(argThat(nodeExecutionError(nodeError)));
+        verify(loaderCallback, timeout(600).times(2)).onFinished();
         verify(runnableA, never()).run();
 
+        // Second Retry with new Callback
         loaderCallback = mock(InitLoaderCallback.class);
         initLoader.retry(loaderCallback);
         initLoader.awaitTermination();
 
-        verify(loaderCallback, timeout(600)).onFinished();
-        verify(loaderCallback, never()).onError(any(NodeExecutionError.class));
-        verify(runnableA, timeout(600)).run();
+        verify(loaderCallback, timeout(600).times(1)).onFinished();
+        verify(loaderCallback, timeout(600).times(0)).onError(any(NodeExecutionError.class));
+        verify(runnableA, timeout(600).times(1)).run();
 
+        // Retry on terminated loader
         try {
             initLoader.retry();
             fail("Should fail, calling retry on terminated or shutdown InitLoader");

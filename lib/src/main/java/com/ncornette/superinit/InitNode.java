@@ -14,8 +14,8 @@ public class InitNode implements Runnable {
     private static final Set<InitNode> EMPTY_SET = Collections.emptySet();
     private CountDownLatch countDownLatch = new CountDownLatch(1);
 
-    Set<InitNode> dependencies = EMPTY_SET;
-    Set<InitNode> descendants = EMPTY_SET;
+    private Set<InitNode> dependencies = EMPTY_SET;
+    private Set<InitNode> descendants = EMPTY_SET;
 
     private Runnable task;
     private Thread.UncaughtExceptionHandler uncaughtExceptionHandler;
@@ -58,11 +58,11 @@ public class InitNode implements Runnable {
     }
 
     public InitNode dependsOn(Collection<InitNode> dependencies) {
-        if (this.dependencies == EMPTY_SET) {
+        if (this.dependencies() == EMPTY_SET) {
             this.dependencies = new HashSet<>();
         }
         for (InitNode dependency : dependencies) {
-            if (dependency.dependencies.contains(this) || dependency == this) {
+            if (dependency.dependencies().contains(this) || dependency == this) {
                 throw new IllegalArgumentException(String.format(
                         "Error adding dependency: %s, circular dependency detected", dependency));
             }
@@ -91,7 +91,7 @@ public class InitNode implements Runnable {
         }
 
         try {
-            for (InitNode descendant : descendants) {
+            for (InitNode descendant : descendants()) {
                 System.out.println("cancel desc: " + descendant);
                 if (!descendant.cancelled()) {
                     descendant.cancel();
@@ -113,7 +113,7 @@ public class InitNode implements Runnable {
         if (this.uncaughtExceptionHandler != null) {
             Thread.currentThread().setUncaughtExceptionHandler(this.uncaughtExceptionHandler);
         }
-        for (InitNode dependency : dependencies) {
+        for (InitNode dependency : dependencies()) {
             try {
                 while(!dependency.await(100, TimeUnit.MILLISECONDS));
             } catch (InterruptedException e) {
@@ -143,15 +143,15 @@ public class InitNode implements Runnable {
     }
 
     protected void runTask() {
-        if (this.task != null) {
-            this.task.run();
+        if (this.task() != null) {
+            this.task().run();
         }
     }
 
     @Override
     public String toString() {
         return "InitNode{" +
-                "" + task +
+                "" + task() +
                 '}';
     }
 
@@ -165,7 +165,7 @@ public class InitNode implements Runnable {
 
 
     InitNode newNode() {
-        InitNode newInitNode = new InitNode(this.task);
+        InitNode newInitNode = new InitNode(this.task());
         return newInitNode;
     }
 
@@ -176,7 +176,7 @@ public class InitNode implements Runnable {
     static Collection<InitNode> newNodesWithDescendants(Collection<InitNode> rootNodes) {
         HashMap<InitNode, InitNode> nodesList = new HashMap<>();
         for (InitNode rootNode : rootNodes) {
-            newNodesWithDescendants(rootNode, rootNode.newNode(), rootNode.descendants, nodesList);
+            newNodesWithDescendants(rootNode, rootNode.newNode(), rootNode.descendants(), nodesList);
         }
         return nodesList.values();
     }
@@ -190,23 +190,34 @@ public class InitNode implements Runnable {
             if (!(descendant instanceof TerminateInitNode)) {
                 InitNode newDescendant = descendant.newNode();
                 newDescendant.dependsOn(newNode);
-                newNodesWithDescendants(descendant, newDescendant, descendant.descendants, nodes);
+                newNodesWithDescendants(descendant, newDescendant, descendant.descendants(), nodes);
             }
         }
     }
 
     private boolean setDependencies(Collection<InitNode> dependencies) {
-        return this.dependencies.addAll(dependencies);
+        return this.dependencies().addAll(dependencies);
     }
 
     private void setDescendantOf(Collection<InitNode> dependencies) {
         for (InitNode dependency : dependencies) {
-            if (dependency.descendants == EMPTY_SET) {
+            if (dependency.descendants() == EMPTY_SET) {
                 dependency.descendants = new HashSet<>();
             }
-            dependency.descendants.add(this);
+            dependency.descendants().add(this);
         }
 
     }
 
+    Set<InitNode> dependencies() {
+        return dependencies;
+    }
+
+    Set<InitNode> descendants() {
+        return descendants;
+    }
+
+    Runnable task() {
+        return task;
+    }
 }

@@ -67,7 +67,7 @@ public class InitLoader {
 
     static void dep_resolve(Collection<? extends InitNode> initNodes, Collection<InitNode> resolved) {
         for (InitNode initNode : initNodes) {
-            if (initNode.dependencies.isEmpty()) {
+            if (initNode.dependencies().isEmpty()) {
                 // Insert orphans first
                 resolved.add(initNode);
             }
@@ -83,7 +83,7 @@ public class InitLoader {
 
     private static void dep_resolve(InitNode initNode, Collection<InitNode> resolved, Collection<InitNode> seen) {
         seen.add(initNode);
-        for (InitNode dependency : initNode.dependencies) {
+        for (InitNode dependency : initNode.dependencies()) {
             if (!resolved.contains(dependency)) {
                 if (seen.contains(dependency)) {
                     throw new IllegalArgumentException(String.format("Circular Dependency: %s --> %s", initNode, dependency));
