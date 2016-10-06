@@ -61,7 +61,7 @@ public interface InitLoaderCallback {
     void onFinished();
 
     // Is called each time a node execution fails with an Exception
-    void onError(NodeExecutionError nodeError);
+    void onNodeError(NodeExecutionError nodeError);
 
     // Is called when an exception occurs outside a node execution
     void onError(Throwable error);
