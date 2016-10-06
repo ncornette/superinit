@@ -3,8 +3,8 @@ package com.ncornette.superinit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -30,7 +30,7 @@ public class InitLoader {
 
     public void load(InitLoaderCallback loaderCallback, Collection<? extends InitNode> initNodes) {
         this.loaderCallback = loaderCallback;
-        errorNodes = new ArrayList<>();
+        errorNodes = new CopyOnWriteArrayList<>();
         if (resolved != null) {
             throw new IllegalStateException("Load() method already called");
         }
@@ -180,9 +180,7 @@ public class InitLoader {
     }
 
     private void addErrorNodes(InitNode... node) {
-        if (errorNodes == null) {
-            errorNodes = Collections.synchronizedList(new ArrayList<InitNode>());
-        }
+
         errorNodes.addAll(Arrays.asList(node));
     }
 
