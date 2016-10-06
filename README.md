@@ -21,7 +21,7 @@ dependencies {
 
 	// Async dependency tree loader
     // https://github.com/ncornette/superinit
-    compile 'com.ncornette.superinit:superinit:0.9.4'
+    compile 'com.ncornette.superinit:superinit:0.9.5'
 }
 ```
 
