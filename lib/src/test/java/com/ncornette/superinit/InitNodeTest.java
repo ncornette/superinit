@@ -14,13 +14,14 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 public class InitNodeTest {
+
+    private static final long VERIFY_TIMEOUT = 3000;
 
     private Runnable runnableA;
     private Runnable runnableB;
@@ -72,17 +73,17 @@ public class InitNodeTest {
         initLoader.load(loaderCallback, nodeA, nodeB, nodeC);
 
         // Then
-        verify(runnableA, timeout(600).times(1)).run();
-        verify(runnableB, timeout(600).times(1)).run();
-        verify(runnableC, timeout(600).times(1)).run();
+        verify(runnableA, timeout(VERIFY_TIMEOUT).times(1)).run();
+        verify(runnableB, timeout(VERIFY_TIMEOUT).times(1)).run();
+        verify(runnableC, timeout(VERIFY_TIMEOUT).times(1)).run();
 
         InOrder inOrder = inOrder(runnableA, runnableB);
         inOrder.verify(runnableB).run();
         inOrder.verify(runnableA).run();
 
-        verify(loaderCallback, timeout(600).times(1)).onFinished();
-        verify(loaderCallback, timeout(600).times(0)).onError(any(Throwable.class));
-        verify(loaderCallback, timeout(600).times(0)).onNodeError(any(NodeExecutionError.class));
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(0)).onError(any(Throwable.class));
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(0)).onNodeError(any(NodeExecutionError.class));
 
     }
 
@@ -124,9 +125,9 @@ public class InitNodeTest {
         initLoader.load(null, nodeA, nodeB, nodeC);
 
         // Then
-        verify(runnableA, timeout(600).times(1)).run();
-        verify(runnableB, timeout(600).times(1)).run();
-        verify(runnableC, timeout(600).times(1)).run();
+        verify(runnableA, timeout(VERIFY_TIMEOUT).times(1)).run();
+        verify(runnableB, timeout(VERIFY_TIMEOUT).times(1)).run();
+        verify(runnableC, timeout(VERIFY_TIMEOUT).times(1)).run();
 
         InOrder inOrder = inOrder(runnableA, runnableB);
         inOrder.verify(runnableB).run();
@@ -154,17 +155,17 @@ public class InitNodeTest {
         initLoader.load(loaderCallback, nodeA, nodeB, nodeC);
 
         // Then
-        verify(runnableB, timeout(600).times(1)).run();
+        verify(runnableB, timeout(VERIFY_TIMEOUT).times(1)).run();
         initLoader.interrupt();
 
         initLoader.awaitTermination();
 
-        verify(runnableA, timeout(600).times(0)).run();
+        verify(runnableA, timeout(VERIFY_TIMEOUT).times(0)).run();
         assertThat(nodeA.getError()).isNotNull();
 
-        verify(loaderCallback, timeout(600).times(0)).onFinished();
-        verify(loaderCallback, timeout(600).times(0)).onError(any(InterruptedException.class));
-        verify(loaderCallback, timeout(600).times(3)).onNodeError(any(NodeExecutionError.class));
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(0)).onFinished();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(0)).onError(any(InterruptedException.class));
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(3)).onNodeError(any(NodeExecutionError.class));
     }
 
     static ArgumentMatcher<NodeExecutionError> nodeExecutionError(final InitNode errorNode) {
@@ -190,12 +191,12 @@ public class InitNodeTest {
         // Given
         initLoader = new InitLoader(2);
         InitNode node = new InitNode();
-        initLoader.load(null, node);
+        initLoader.load(loaderCallback, node);
 
         try {
 
             // When
-            initLoader.load(null, node);
+            initLoader.load(loaderCallback, node);
             fail("Expected failure when trying to load twice");
         } catch (IllegalStateException e) {
 
@@ -249,29 +250,29 @@ public class InitNodeTest {
 
         // Then
         initLoader.awaitTasks();
-        verify(runnableC, timeout(600)).run();
+        verify(runnableC, timeout(VERIFY_TIMEOUT)).run();
 
-        verify(loaderCallback, timeout(600).times(1)).onNodeError(argThat(nodeExecutionError(nodeError)));
-        verify(loaderCallback, timeout(600).times(1)).onFinished();
-        verify(runnableA, timeout(600).times(0)).run();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(1)).onNodeError(argThat(nodeExecutionError(nodeError)));
+        verify(runnableA, timeout(VERIFY_TIMEOUT).times(0)).run();
 
         // First retry
         initLoader.retry();
         initLoader.awaitTasks();
 
-        verify(loaderCallback, timeout(600).times(2)).onNodeError(argThat(nodeExecutionError(nodeError)));
-        verify(loaderCallback, timeout(600).times(2)).onFinished();
-        verify(runnableA, never()).run();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(2)).onFinished();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(2)).onNodeError(argThat(nodeExecutionError(nodeError)));
+        verify(runnableA, timeout(VERIFY_TIMEOUT).times(0)).run();
 
         // Second Retry with new Callback
         loaderCallback = mock(InitLoaderCallback.class);
         initLoader.retry(loaderCallback);
         initLoader.awaitTermination();
 
-        verify(loaderCallback, timeout(600).times(1)).onFinished();
-        verify(loaderCallback, timeout(600).times(0)).onNodeError(any(NodeExecutionError.class));
-        verify(loaderCallback, timeout(600).times(0)).onError(any(Throwable.class));
-        verify(runnableA, timeout(600).times(1)).run();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(0)).onNodeError(any(NodeExecutionError.class));
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(0)).onError(any(Throwable.class));
+        verify(runnableA, timeout(VERIFY_TIMEOUT).times(1)).run();
 
         // Retry on terminated loader
         try {
@@ -287,17 +288,19 @@ public class InitNodeTest {
 
         @Override
         public void onFinished() {
-            System.err.println("finished");
+            System.out.println("---> onFinished()");
         }
 
         @Override
         public void onNodeError(NodeExecutionError nodeError) {
-            nodeError.printStackTrace();
+            System.out.println("---> onNodeError()");
+            System.out.print("---> "); nodeError.printStackTrace(System.out);
         }
 
         @Override
         public void onError(Throwable error) {
-            error.printStackTrace();
+            System.out.println("---> onError()");
+            System.out.print("---> "); error.printStackTrace(System.out);
         }
     }
 }

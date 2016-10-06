@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verify;
 
 public abstract class InitLoaderTest {
 
+    private static final long VERIFY_TIMEOUT = 3000;
     List<TestInitNode> initNodes;
     TestInitNode initA;
     TestInitNode initB;
@@ -34,7 +35,6 @@ public abstract class InitLoaderTest {
     TestInitNode initI;
     private InitLoaderCallback spyLoadedCallback;
     private InitLoader initLoader;
-    private int timeout;
 
     @Before
     public void setUp() throws Exception {
@@ -53,7 +53,6 @@ public abstract class InitLoaderTest {
         initNodes.addAll(Arrays.asList(initA, initB, initC, initD, initE, initF, initG, initH, initI));
 
         spyLoadedCallback = spy(new AssertNodesExecutedCallback(initNodes));
-        timeout = 2000;
     }
 
     @After
@@ -98,8 +97,8 @@ public abstract class InitLoaderTest {
         initLoader.awaitTermination();
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
-        verify(spyLoadedCallback, timeout(timeout).times(0)).onError((Throwable) anyObject());
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(0)).onError((Throwable) anyObject());
     }
 
 
@@ -114,7 +113,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
     }
 
     @Test
@@ -128,7 +127,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
     }
 
     @Test
@@ -142,7 +141,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
     }
 
     @Test
@@ -156,7 +155,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
     }
 
     @Test
@@ -170,7 +169,7 @@ public abstract class InitLoaderTest {
         initLoader.load(spyLoadedCallback, initNodes);
 
         // Then
-        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
     }
 
     @Test
@@ -266,22 +265,6 @@ public abstract class InitLoaderTest {
         initA.dependsOn(errorNode);
         initI.dependsOn(errorNode);
         initNodes.add(errorNode);
-        spyLoadedCallback = spy(new InitLoaderCallback() {
-            @Override
-            public void onFinished() {
-
-            }
-
-            @Override
-            public void onNodeError(NodeExecutionError t) {
-
-            }
-
-            @Override
-            public void onError(Throwable t) {
-
-            }
-        });
 
         // When
         initLoader = new InitLoader(6);
@@ -299,9 +282,9 @@ public abstract class InitLoaderTest {
 
         initLoader.awaitTermination();
 
-        verify(spyLoadedCallback, timeout(timeout).times(1)).onFinished();
-        verify(spyLoadedCallback, timeout(timeout).times(0)).onError(any(Throwable.class));
-        verify(spyLoadedCallback, timeout(timeout).times(1)).onNodeError(argThat(nodeExecutionError(errorNode)));
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(0)).onError(any(Throwable.class));
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onNodeError(argThat(nodeExecutionError(errorNode)));
 
         assertThat(errorNode.error()).isTrue();
         assertThat(errorNode.cancelled()).isFalse();
@@ -347,16 +330,19 @@ public abstract class InitLoaderTest {
             for (InitNode initNode : initNodes) {
                 assertThat(initNode.finished() || initNode.cancelled()).isTrue();
             }
+            System.out.println("---> InitLoaderCallback: onFinished()");
         }
 
         @Override
         public void onNodeError(NodeExecutionError t) {
-            System.err.println(t.getMessage());
+            System.out.println("---> InitLoaderCallback: onNodeError()");
+            System.out.print("---> "); t.printStackTrace(System.out);
         }
 
         @Override
         public void onError(Throwable t) {
-            System.err.println(t.getMessage());
+            System.out.println("---> InitLoaderCallback: onError()");
+            System.out.print("---> "); t.printStackTrace(System.out);
         }
     }
 

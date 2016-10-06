@@ -30,7 +30,7 @@ public class InitLoader {
 
     public void load(InitLoaderCallback loaderCallback, Collection<? extends InitNode> initNodes) {
         this.loaderCallback = loaderCallback;
-        errorNodes = null;
+        errorNodes = new ArrayList<>();
         if (resolved != null) {
             throw new IllegalStateException("Load() method already called");
         }
