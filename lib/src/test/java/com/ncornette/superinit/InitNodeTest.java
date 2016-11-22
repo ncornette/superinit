@@ -252,7 +252,8 @@ public class InitNodeTest {
         initLoader.awaitTasks();
         verify(runnableC, timeout(VERIFY_TIMEOUT)).run();
 
-        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(0)).onFinished();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(1)).onCancelled();
         verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(1)).onNodeError(argThat(nodeExecutionError(nodeError)));
         verify(runnableA, timeout(VERIFY_TIMEOUT).times(0)).run();
 
@@ -260,7 +261,8 @@ public class InitNodeTest {
         initLoader.retry();
         initLoader.awaitTasks();
 
-        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(2)).onFinished();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(0)).onFinished();
+        verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(2)).onCancelled();
         verify(loaderCallback, timeout(VERIFY_TIMEOUT).times(2)).onNodeError(argThat(nodeExecutionError(nodeError)));
         verify(runnableA, timeout(VERIFY_TIMEOUT).times(0)).run();
 
@@ -301,6 +303,11 @@ public class InitNodeTest {
         public void onError(Throwable error) {
             System.out.println("---> onError()");
             System.out.print("---> "); error.printStackTrace(System.out);
+        }
+
+        @Override
+        public void onCancelled() {
+            System.out.println("---> onCancelled()");
         }
     }
 }

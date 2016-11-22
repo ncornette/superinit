@@ -3,14 +3,16 @@ package com.ncornette.superinit;
 public class TerminateInitNode extends InitNode {
 
     private final InitLoaderCallback loaderCallback;
+    private boolean mCancelled;
 
     public TerminateInitNode(InitLoaderCallback loaderCallback) {
         this.loaderCallback = loaderCallback;
+        mCancelled = false;
     }
 
     @Override
     public void cancel() {
-
+        mCancelled = true;
         // Cannot be cancelled
         //super.cancel();
 
@@ -20,7 +22,9 @@ public class TerminateInitNode extends InitNode {
     protected void runTask() {
         super.runTask();
 
-        if (loaderCallback != null) {
+        if (mCancelled) {
+            loaderCallback.onCancelled();
+        } else if (loaderCallback != null) {
             loaderCallback.onFinished();
         }
 

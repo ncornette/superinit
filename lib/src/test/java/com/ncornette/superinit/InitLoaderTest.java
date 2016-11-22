@@ -97,7 +97,8 @@ public abstract class InitLoaderTest {
         initLoader.awaitTermination();
 
         // Then
-        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(0)).onFinished();
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onCancelled();
         verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(0)).onError((Throwable) anyObject());
     }
 
@@ -282,7 +283,7 @@ public abstract class InitLoaderTest {
 
         initLoader.awaitTermination();
 
-        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onFinished();
+        verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(0)).onFinished();
         verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(0)).onError(any(Throwable.class));
         verify(spyLoadedCallback, timeout(VERIFY_TIMEOUT).times(1)).onNodeError(argThat(nodeExecutionError(errorNode)));
 
@@ -343,6 +344,11 @@ public abstract class InitLoaderTest {
         public void onError(Throwable t) {
             System.out.println("---> InitLoaderCallback: onError()");
             System.out.print("---> "); t.printStackTrace(System.out);
+        }
+
+        @Override
+        public void onCancelled() {
+            System.out.println("---> InitLoaderCallback: onCancelled()");
         }
     }
 

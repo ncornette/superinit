@@ -8,4 +8,5 @@ public interface InitLoaderCallback {
 
     void onError(Throwable error);
 
+    void onCancelled();
 }
