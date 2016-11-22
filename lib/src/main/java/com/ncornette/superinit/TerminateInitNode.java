@@ -1,18 +1,19 @@
 package com.ncornette.superinit;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class TerminateInitNode extends InitNode {
 
     private final InitLoaderCallback loaderCallback;
-    private boolean mCancelled;
+    private AtomicBoolean mCancelled = new AtomicBoolean(false);
 
     public TerminateInitNode(InitLoaderCallback loaderCallback) {
         this.loaderCallback = loaderCallback;
-        mCancelled = false;
     }
 
     @Override
     public void cancel() {
-        mCancelled = true;
+        mCancelled.set(true);
         // Cannot be cancelled
         //super.cancel();
 
@@ -22,7 +23,7 @@ public class TerminateInitNode extends InitNode {
     protected void runTask() {
         super.runTask();
 
-        if (mCancelled) {
+        if (mCancelled.get()) {
             loaderCallback.onCancelled();
         } else if (loaderCallback != null) {
             loaderCallback.onFinished();
